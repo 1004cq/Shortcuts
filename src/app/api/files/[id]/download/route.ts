@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { Readable } from "stream";
 import mongoose from "mongoose";
@@ -6,20 +6,18 @@ import { connectDB } from "@/lib/db";
 import { FileModel } from "@/models/File";
 import { DownloadLog } from "@/models/DownloadLog";
 import { getFileStats, openFileStream, resolveStoredPath } from "@/lib/storage";
-import {
-  ApiError,
-  requireDownloadPermission,
-  withApiHandler,
-} from "@/lib/api";
+import { ApiError, withApiHandler } from "@/lib/api";
+import { requireDownloadFromRequest } from "@/lib/token-auth";
 
 type Ctx = { params: { id: string } };
 
 /**
- * GET /api/files/:id/download — VIP/admin only.
- * Streams the full file with Content-Disposition attachment.
+ * GET /api/files/:id/download
+ * Auth: NextAuth session OR ?token= / Authorization: Bearer (VIP/admin).
+ * Designed for Apple Shortcuts «获取 URL 内容».
  */
 export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
-  const user = await requireDownloadPermission();
+  const user = await requireDownloadFromRequest(req);
   const { id } = (ctx as Ctx).params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -32,7 +30,6 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
     throw new ApiError("文件不存在", 404);
   }
 
-  // Ensure path is inside upload root (throws on traversal)
   resolveStoredPath(file.path);
   const stats = getFileStats(file.path);
   const nodeStream = openFileStream(file.path);

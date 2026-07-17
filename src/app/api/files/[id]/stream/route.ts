@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { Readable } from "stream";
 import mongoose from "mongoose";
@@ -6,20 +6,17 @@ import { connectDB } from "@/lib/db";
 import { FileModel } from "@/models/File";
 import { DownloadLog } from "@/models/DownloadLog";
 import { getFileStats, openFileStream, resolveStoredPath } from "@/lib/storage";
-import {
-  ApiError,
-  requireStreamPermission,
-  withApiHandler,
-} from "@/lib/api";
+import { ApiError, withApiHandler } from "@/lib/api";
+import { requireStreamFromRequest } from "@/lib/token-auth";
 
 type Ctx = { params: { id: string } };
 
 /**
- * GET /api/files/:id/stream — VIP/admin only.
- * Supports HTTP Range requests for progressive video/audio playback.
+ * GET /api/files/:id/stream
+ * Auth: session OR API token (?token= / Bearer). Supports HTTP Range.
  */
 export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
-  const user = await requireStreamPermission();
+  const user = await requireStreamFromRequest(req);
   const { id } = (ctx as Ctx).params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -37,7 +34,6 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   const fileSize = stats.size;
   const range = req.headers.get("range");
 
-  // Log stream starts (not every range chunk) — only when no Range or start=0
   const shouldLog =
     !range || range.toLowerCase().includes("bytes=0-") || range === "bytes=0-";
 
@@ -60,7 +56,9 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
       throw new ApiError("无效的 Range 头", 416);
     }
     const start = parseInt(match[1], 10);
-    const end = match[2] ? parseInt(match[2], 10) : Math.min(start + 1024 * 1024 - 1, fileSize - 1);
+    const end = match[2]
+      ? parseInt(match[2], 10)
+      : Math.min(start + 1024 * 1024 - 1, fileSize - 1);
 
     if (start >= fileSize || end >= fileSize || start > end) {
       return new Response(null, {

@@ -72,6 +72,18 @@ const UserSchema = new Schema(
       type: Date,
       default: null,
     },
+    /**
+     * Personal API token for Apple Shortcuts / external clients.
+     * Sent as ?token= or Authorization: Bearer — never log the raw value.
+     */
+    apiToken: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+      index: true,
+      select: false,
+    },
   },
   {
     timestamps: true,

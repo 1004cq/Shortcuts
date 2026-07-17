@@ -182,20 +182,67 @@ function Actions({
   file: FileItem;
   allowedDownload: boolean;
 }) {
-  return allowedDownload ? (
-    <Button className="w-full" asChild>
-      <a href={`/api/files/${file._id}/download`}>
-        <Download className="h-4 w-4" />
-        下载文件
-      </a>
-    </Button>
-  ) : (
-    <Button className="w-full" asChild>
-      <Link href="/pricing">
-        <Lock className="h-4 w-4" />
-        升级后下载
-      </Link>
-    </Button>
+  const [shortcutUrl, setShortcutUrl] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!allowedDownload) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/me/token");
+        const data = await res.json();
+        if (!res.ok) return;
+        const base = window.location.origin;
+        setShortcutUrl(
+          `${base}/api/files/${file._id}/download?token=${encodeURIComponent(data.token)}`
+        );
+      } catch {
+        // ignore
+      }
+    })();
+  }, [allowedDownload, file._id]);
+
+  if (!allowedDownload) {
+    return (
+      <Button className="w-full" asChild>
+        <Link href="/pricing">
+          <Lock className="h-4 w-4" />
+          升级后下载
+        </Link>
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <Button className="w-full" asChild>
+        <a href={`/api/files/${file._id}/download`}>
+          <Download className="h-4 w-4" />
+          下载文件
+        </a>
+      </Button>
+      {shortcutUrl && (
+        <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+          <p className="text-xs font-medium text-muted-foreground">快捷指令专用链接</p>
+          <p className="break-all font-mono text-[11px] leading-relaxed text-foreground/80">
+            {shortcutUrl}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="w-full"
+            onClick={async () => {
+              await navigator.clipboard.writeText(shortcutUrl);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            {copied ? "已复制" : "复制到快捷指令"}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
