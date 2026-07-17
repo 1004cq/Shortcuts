@@ -1,13 +1,12 @@
 /**
  * 支付宝电脑网站支付 — Express 入口
- *
+ * ------------------------------------------------------------
  * 启动：
- *   cd alipay-website-payment
- *   cp .env.example .env   # 填入 APPID / 应用私钥 / 支付宝公钥
+ *   cp .env.example .env   # 填入 APP_ID / PRIVATE_KEY / ALIPAY_PUBLIC_KEY
  *   npm install && npm start
  *
- * 沙箱：ALIPAY_SANDBOX=true
- * 生产：ALIPAY_SANDBOX=false
+ * 沙箱：GATEWAY=https://openapi-sandbox.dl.alipaydev.com/gateway.do
+ * 生产：GATEWAY=https://openapi.alipay.com/gateway.do
  */
 require("dotenv").config();
 
@@ -20,41 +19,42 @@ const logger = require("./utils/logger");
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 
-// 支付宝异步通知为 application/x-www-form-urlencoded
+// 支付宝异步通知 Content-Type: application/x-www-form-urlencoded
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// 静态前端：index.html / success.html
 app.use(express.static(path.join(__dirname, "public")));
 
+// 健康检查
 app.get("/api/health", (_req, res) => {
-  res.json({
-    ok: true,
-    ...config.summary(),
-  });
+  res.json({ ok: true, ...config.summary() });
 });
 
-app.use("/api/payment", paymentRoutes);
+// 挂载支付路由（/create-payment、/return、/notify 等）
+app.use(paymentRoutes);
 
 // 统一错误处理
 app.use((err, _req, res, _next) => {
-  logger.error("server", "unhandled", { err: err.message, stack: err.stack });
+  logger.error("server", "未捕获异常", { err: err.message, stack: err.stack });
   res.status(500).json({ error: "服务器错误" });
 });
 
 app.listen(PORT, () => {
   const s = config.summary();
   console.log("========================================");
-  console.log(" 支付宝电脑网站支付 Demo");
+  console.log(" 支付宝电脑网站支付");
   console.log("========================================");
-  console.log(` URL        : http://localhost:${PORT}`);
-  console.log(` 环境       : ${s.env} (ALIPAY_SANDBOX=${config.sandbox})`);
-  console.log(` 已配置密钥 : ${s.configured}`);
-  console.log(` APPID      : ${s.appId}`);
-  console.log(` 网关       : ${s.gateway}`);
-  console.log(` notify_url : ${s.notifyUrl}`);
-  console.log(` return_url : ${s.returnUrl}`);
+  console.log(` 本地地址   : http://localhost:${PORT}`);
+  console.log(` 运行环境   : ${s.env}`);
+  console.log(` 密钥已配置 : ${s.configured}`);
+  console.log(` APP_ID     : ${s.appId}`);
+  console.log(` GATEWAY    : ${s.gateway}`);
+  console.log(` NOTIFY_URL : ${s.notifyUrl}`);
+  console.log(` RETURN_URL : ${s.returnUrl}`);
+  console.log(` 演示商品   : ${s.product.title} ¥${s.product.amount}`);
   console.log("========================================");
   if (!s.configured) {
-    console.log(" ⚠ 请复制 .env.example → .env 并填入密钥后再测试支付");
+    console.log(" ⚠ 请复制 .env.example 为 .env 并填入密钥");
   }
 });

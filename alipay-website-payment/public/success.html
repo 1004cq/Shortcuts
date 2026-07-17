@@ -4,100 +4,159 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>支付结果</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <style>
       body {
-        margin: 0;
         min-height: 100vh;
-        display: grid;
-        place-items: center;
-        font-family: "PingFang SC", "Segoe UI", sans-serif;
-        background: #0b1220;
-        color: #e8eefc;
+        background: linear-gradient(160deg, #e8f3ff 0%, #f7f9fc 45%, #ffffff 100%);
       }
-      .card {
-        width: min(440px, 92vw);
-        background: #121a2b;
-        border: 1px solid #243049;
+      .result-card {
+        border: 0;
         border-radius: 1rem;
-        padding: 2rem 1.5rem;
-        text-align: center;
+        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
       }
-      h1 { font-size: 1.35rem; margin: 0.75rem 0; }
-      p { color: #93a0b8; line-height: 1.6; }
-      .mono { font-family: ui-monospace, monospace; font-size: 0.75rem; word-break: break-all; }
-      a {
-        display: inline-block;
-        margin-top: 1.25rem;
-        padding: 0.65rem 1.2rem;
-        border-radius: 0.7rem;
-        background: #1677ff;
-        color: #fff;
-        text-decoration: none;
-        font-weight: 600;
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+        word-break: break-all;
       }
-      .ok { color: #3dd68c; }
-      .warn { color: #f5a524; }
-      .err { color: #f31260; }
     </style>
   </head>
   <body>
-    <div class="card">
-      <div id="icon">…</div>
-      <h1 id="title">确认支付结果</h1>
-      <p id="msg">正在查询订单…</p>
-      <p class="mono" id="order"></p>
-      <a href="/">返回商品页</a>
+    <div class="container py-5">
+      <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-5">
+          <div class="card result-card">
+            <div class="card-body p-4 p-md-5 text-center">
+              <div id="icon" class="display-4 mb-2">⏳</div>
+              <h1 id="title" class="h3 fw-bold">正在确认支付结果…</h1>
+              <p id="msg" class="text-secondary mt-2 mb-3">请稍候，正在查询订单状态</p>
+
+              <div class="text-start bg-light rounded-3 p-3 mb-3">
+                <div class="small text-secondary">商户订单号</div>
+                <div id="outTradeNo" class="mono">-</div>
+                <div class="small text-secondary mt-2">支付宝交易号</div>
+                <div id="tradeNo" class="mono">-</div>
+                <div class="small text-secondary mt-2">商品 / 金额 / 状态</div>
+                <div id="detail">-</div>
+              </div>
+
+              <div id="tips" class="alert alert-info small text-start d-none" role="alert"></div>
+
+              <div class="d-grid gap-2">
+                <a class="btn btn-primary" href="/">返回首页</a>
+                <button id="refreshBtn" class="btn btn-outline-secondary" type="button">
+                  刷新订单状态
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+
     <script>
       const params = new URLSearchParams(location.search);
       const outTradeNo = params.get("out_trade_no") || "";
-      const initial = params.get("status") || "";
+      const initialStatus = params.get("status") || "";
+
+      const $icon = document.getElementById("icon");
       const $title = document.getElementById("title");
       const $msg = document.getElementById("msg");
-      const $order = document.getElementById("order");
-      const $icon = document.getElementById("icon");
+      const $outTradeNo = document.getElementById("outTradeNo");
+      const $tradeNo = document.getElementById("tradeNo");
+      const $detail = document.getElementById("detail");
+      const $tips = document.getElementById("tips");
+      const $refreshBtn = document.getElementById("refreshBtn");
 
-      $order.textContent = outTradeNo ? "订单号：" + outTradeNo : "缺少订单号";
+      $outTradeNo.textContent = outTradeNo || "（缺少 out_trade_no）";
 
-      async function poll(attempt = 0) {
+      function renderSuccess(order) {
+        $icon.textContent = "✅";
+        $title.textContent = "支付成功";
+        $title.className = "h3 fw-bold text-success";
+        $msg.textContent = "异步通知或主动查单已确认到账";
+        $tradeNo.textContent = order.tradeNo || "-";
+        $detail.textContent = `${order.subject} · ¥${Number(order.amount).toFixed(2)} · ${order.status}`;
+        $tips.classList.add("d-none");
+      }
+
+      function renderPending(order, note) {
+        $icon.textContent = "⏳";
+        $title.textContent = "支付处理中";
+        $title.className = "h3 fw-bold text-primary";
+        $msg.textContent = note || "若您已完成付款，请稍候刷新；最终以异步 notify 为准";
+        $tradeNo.textContent = order?.tradeNo || "-";
+        $detail.textContent = order
+          ? `${order.subject} · ¥${Number(order.amount).toFixed(2)} · ${order.status}`
+          : "-";
+        $tips.className = "alert alert-info small text-start";
+        $tips.textContent =
+          "可能原因：异步通知尚未到达、本地调试未配置公网 NOTIFY_URL、或买家尚未完成付款。";
+      }
+
+      function renderFail(title, msg, order) {
+        $icon.textContent = "❌";
+        $title.textContent = title;
+        $title.className = "h3 fw-bold text-danger";
+        $msg.textContent = msg;
+        $tradeNo.textContent = order?.tradeNo || "-";
+        $detail.textContent = order
+          ? `${order.subject} · ¥${Number(order.amount).toFixed(2)} · ${order.status}`
+          : "-";
+        $tips.className = "alert alert-warning small text-start";
+        $tips.textContent =
+          "常见排查：验签失败（公钥/私钥不匹配）、TRADE_CLOSED（超时关闭）、金额不一致、沙箱账号未付款。";
+      }
+
+      async function fetchOrder() {
         if (!outTradeNo) {
-          $title.textContent = "支付异常";
-          $title.className = "err";
-          $msg.textContent = "缺少 out_trade_no";
-          return;
+          renderFail("参数错误", "回跳地址缺少 out_trade_no");
+          return null;
         }
+        const res = await fetch("/api/order?outTradeNo=" + encodeURIComponent(outTradeNo));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "查询失败");
+        return data.order;
+      }
+
+      async function refresh(attempt = 0) {
         try {
-          const res = await fetch("/api/payment/query?outTradeNo=" + encodeURIComponent(outTradeNo));
-          const data = await res.json();
-          if (res.ok && data.order?.status === "paid") {
-            $icon.textContent = "✅";
-            $title.textContent = "支付成功";
-            $title.className = "ok";
-            $msg.textContent = `${data.order.subject} · ¥${data.order.amount} · ${data.env || ""}`;
+          const order = await fetchOrder();
+          if (!order) return;
+
+          if (order.status === "paid") {
+            renderSuccess(order);
             return;
           }
-          if (attempt >= 8) {
-            $icon.textContent = "⏳";
-            $title.textContent = initial === "invalid" ? "验签失败" : "等待确认";
-            $title.className = "warn";
-            $msg.textContent =
-              "若已扣款请稍后刷新。最终以异步 notify 为准；演示订单在内存中，重启会丢失。";
+          if (order.status === "closed" || order.timedOut) {
+            renderFail("支付失败 / 超时", order.lastError || "交易已关闭或等待超时", order);
             return;
           }
-          setTimeout(() => poll(attempt + 1), 1200);
-        } catch (e) {
+          if (initialStatus === "invalid") {
+            renderFail("验签失败", "同步回跳参数验签未通过，请检查支付宝公钥配置", order);
+            return;
+          }
+          if (attempt >= 10) {
+            renderPending(order, "仍未确认成功，请稍后点击「刷新订单状态」");
+            return;
+          }
+          renderPending(order);
+          setTimeout(() => refresh(attempt + 1), 1500);
+        } catch (err) {
           if (attempt >= 5) {
-            $icon.textContent = "❌";
-            $title.textContent = "查询失败";
-            $title.className = "err";
-            $msg.textContent = e.message;
+            renderFail("查询失败", err.message);
             return;
           }
-          setTimeout(() => poll(attempt + 1), 1200);
+          setTimeout(() => refresh(attempt + 1), 1500);
         }
       }
 
-      poll();
+      $refreshBtn.addEventListener("click", () => refresh(0));
+      refresh(0);
     </script>
   </body>
 </html>

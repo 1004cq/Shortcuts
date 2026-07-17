@@ -1,8 +1,9 @@
 /**
- * 支付宝 SDK 封装
- * - alipay.trade.page.pay → Form HTML 自动跳转（电脑网站支付）
- * - 验签 / 查单 / 退款
- * - 支持沙箱 / 生产（由 config.gateway 决定）
+ * 支付宝 SDK 封装（官方 alipay-sdk）
+ * ------------------------------------------------------------
+ * - 电脑网站支付：alipay.trade.page.pay → 返回自动提交的 Form HTML
+ * - 异步/同步回调：RSA2 验签（checkNotifySignV2 / checkNotifySign）
+ * - 交易查询 / 退款
  */
 const crypto = require("node:crypto");
 const { Blob: NodeBlob, File: NodeFile } = require("node:buffer");
@@ -10,7 +11,7 @@ const { AlipaySdk } = require("alipay-sdk");
 const config = require("../config/alipay");
 const logger = require("./logger");
 
-// Node 18 兼容
+// Node 18 兼容：部分依赖依赖全局 File / Blob
 if (typeof globalThis.File === "undefined" && typeof NodeFile !== "undefined") {
   globalThis.File = NodeFile;
 }
@@ -19,38 +20,41 @@ if (typeof globalThis.Blob === "undefined" && typeof NodeBlob !== "undefined") {
 }
 
 let cachedSdk = null;
-let cachedKey = "";
+let cachedFingerprint = "";
 
-function cacheKey() {
-  return [config.appId, config.gateway, config.keyType, config.sandbox ? "1" : "0"].join("|");
+function fingerprint() {
+  return [config.appId, config.gateway, config.keyType].join("|");
 }
 
+/** 获取（或重建）SDK 实例 */
 function getSdk() {
   if (!config.isConfigured()) {
-    throw new Error(
-      "支付宝未配置：请在 .env 填写 ALIPAY_APP_ID / ALIPAY_PRIVATE_KEY / ALIPAY_PUBLIC_KEY"
-    );
+    throw new Error("支付宝未配置：请在 .env 填写 APP_ID / PRIVATE_KEY / ALIPAY_PUBLIC_KEY");
   }
 
-  const key = cacheKey();
-  if (cachedSdk && cachedKey === key) return cachedSdk;
+  const fp = fingerprint();
+  if (cachedSdk && cachedFingerprint === fp) return cachedSdk;
 
   cachedSdk = new AlipaySdk({
     appId: config.appId,
     privateKey: config.privateKey,
     alipayPublicKey: config.alipayPublicKey,
     keyType: config.keyType,
+    // 官方推荐 RSA2
     signType: "RSA2",
     gateway: config.gateway,
   });
-  cachedKey = key;
-  logger.info("alipaySDK", "sdk initialized", {
+  cachedFingerprint = fp;
+
+  logger.info("alipaySDK", "SDK 初始化完成", {
     env: config.envName,
     gateway: config.gateway,
+    signType: "RSA2",
   });
   return cachedSdk;
 }
 
+/** 金额格式化为两位小数字符串 */
 function formatAmount(yuan) {
   const n = Number(yuan);
   if (!Number.isFinite(n) || n <= 0) {
@@ -59,21 +63,28 @@ function formatAmount(yuan) {
   return n.toFixed(2);
 }
 
-function generateOutTradeNo(prefix = "ORD") {
-  return `${prefix}${Date.now()}${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+/**
+ * 生成唯一商户订单号
+ * 格式：ORDER_ + 时间戳 + 随机数
+ */
+function generateOutTradeNo() {
+  const rand = crypto.randomBytes(3).toString("hex").toUpperCase();
+  return `ORDER_${Date.now()}_${rand}`;
 }
 
 /**
- * 电脑网站支付：alipay.trade.page.pay
- * 返回自动提交的 Form HTML（POST）
+ * 调用 alipay.trade.page.pay，返回 Form 表单 HTML（前端自动 submit）
  */
 function createPagePayForm({ outTradeNo, subject, totalAmount, body }) {
   const sdk = getSdk();
+
+  // httpMethod = 'POST' → 生成带自动提交脚本的 Form HTML
   const html = sdk.pageExecute("alipay.trade.page.pay", "POST", {
     notifyUrl: config.notifyUrl,
     returnUrl: config.returnUrl,
     bizContent: {
       out_trade_no: outTradeNo,
+      // 电脑网站支付固定产品码
       product_code: "FAST_INSTANT_TRADE_PAY",
       total_amount: formatAmount(totalAmount),
       subject,
@@ -81,14 +92,16 @@ function createPagePayForm({ outTradeNo, subject, totalAmount, body }) {
     },
   });
 
-  logger.info("alipaySDK", "page.pay form created", {
-    env: config.envName,
+  logger.info("alipaySDK", "page.pay Form 已生成", {
     outTradeNo,
     amount: formatAmount(totalAmount),
+    env: config.envName,
   });
+
   return html;
 }
 
+/** 主动查询交易状态 alipay.trade.query */
 async function queryTrade(outTradeNo) {
   const sdk = getSdk();
   logger.info("alipaySDK", "trade.query", { outTradeNo });
@@ -97,9 +110,10 @@ async function queryTrade(outTradeNo) {
   });
 }
 
+/** 退款 alipay.trade.refund（可选） */
 async function refundTrade({ outTradeNo, refundAmount, refundReason, outRequestNo }) {
   const sdk = getSdk();
-  const requestNo = outRequestNo || generateOutTradeNo("RF");
+  const requestNo = outRequestNo || `RF_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`;
   logger.info("alipaySDK", "trade.refund", { outTradeNo, refundAmount, requestNo });
   return sdk.exec("alipay.trade.refund", {
     bizContent: {
@@ -111,17 +125,21 @@ async function refundTrade({ outTradeNo, refundAmount, refundReason, outRequestN
   });
 }
 
+/**
+ * 严格验签（RSA2）
+ * 优先 checkNotifySignV2（不对 value 做 decode），失败再尝试 checkNotifySign
+ */
 function verifyNotify(payload) {
   const sdk = getSdk();
   try {
     if (sdk.checkNotifySignV2(payload)) return true;
   } catch (err) {
-    logger.warn("alipaySDK", "checkNotifySignV2 error", { err: String(err.message || err) });
+    logger.warn("alipaySDK", "checkNotifySignV2 异常", { err: String(err.message || err) });
   }
   try {
     return sdk.checkNotifySign(payload);
   } catch (err) {
-    logger.warn("alipaySDK", "checkNotifySign error", { err: String(err.message || err) });
+    logger.warn("alipaySDK", "checkNotifySign 异常", { err: String(err.message || err) });
     return false;
   }
 }

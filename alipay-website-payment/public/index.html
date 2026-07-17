@@ -4,156 +4,190 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>支付宝电脑网站支付</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <style>
-      :root {
-        --bg: #0b1220;
-        --card: #121a2b;
-        --text: #e8eefc;
-        --muted: #93a0b8;
-        --accent: #1677ff;
-        --border: #243049;
-      }
-      * { box-sizing: border-box; }
       body {
-        margin: 0;
         min-height: 100vh;
-        font-family: "PingFang SC", "Segoe UI", sans-serif;
-        color: var(--text);
-        background:
-          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 119, 255, 0.28), transparent 55%),
-          var(--bg);
+        background: linear-gradient(160deg, #e8f3ff 0%, #f7f9fc 45%, #ffffff 100%);
       }
-      main { max-width: 800px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-      h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
-      .sub { color: var(--muted); margin-bottom: 1rem; line-height: 1.6; }
-      .badge {
-        display: inline-block;
-        padding: 0.2rem 0.65rem;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        border: 1px solid var(--border);
-        color: var(--muted);
-        margin: 0 0.35rem 1rem 0;
+      .hero {
+        padding: 3rem 0 1.5rem;
       }
-      .badge.ok { color: #3dd68c; border-color: rgba(61, 214, 140, 0.45); }
-      .badge.warn { color: #f5a524; border-color: rgba(245, 165, 36, 0.45); }
-      .badge.info { color: #69b1ff; border-color: rgba(105, 177, 255, 0.45); }
-      .grid { display: grid; gap: 1rem; }
-      @media (min-width: 700px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 1rem;
-        padding: 1.2rem;
-      }
-      .card h2 { margin: 0 0 0.35rem; font-size: 1.05rem; }
-      .price { font-size: 1.6rem; font-weight: 700; margin: 0.7rem 0; }
-      .price span { font-size: 0.85rem; color: var(--muted); font-weight: 400; }
-      .desc { color: var(--muted); font-size: 0.88rem; min-height: 2.4rem; }
-      button {
-        width: 100%;
-        margin-top: 0.85rem;
+      .pay-card {
         border: 0;
-        border-radius: 0.75rem;
-        padding: 0.7rem 1rem;
-        background: var(--accent);
-        color: #fff;
-        font-size: 0.95rem;
-        font-weight: 600;
-        cursor: pointer;
+        border-radius: 1rem;
+        box-shadow: 0 12px 40px rgba(22, 119, 255, 0.12);
       }
-      button:disabled { opacity: 0.55; cursor: not-allowed; }
-      .err { margin-top: 1rem; color: #f31260; }
-      code, .mono { font-size: 0.78rem; color: var(--muted); word-break: break-all; }
-      ol { color: var(--muted); font-size: 0.9rem; line-height: 1.75; padding-left: 1.2rem; }
+      .amount {
+        font-size: 2.4rem;
+        font-weight: 700;
+        color: #1677ff;
+      }
+      .badge-env {
+        font-weight: 500;
+      }
     </style>
   </head>
   <body>
-    <main>
-      <div>
-        <span id="cfg" class="badge">检查配置…</span>
-        <span id="env" class="badge info">环境</span>
+    <div class="container hero">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <span class="badge text-bg-primary">支付宝电脑网站支付</span>
+        <span id="envBadge" class="badge text-bg-secondary badge-env">环境检测中…</span>
+        <span id="cfgBadge" class="badge text-bg-warning badge-env">配置检测中…</span>
       </div>
-      <h1>支付宝电脑网站支付</h1>
-      <p class="sub">
-        后端调用 <code>alipay.trade.page.pay</code>，返回 Form HTML 自动跳转收银台。
-        支持沙箱 / 生产环境切换（<code>ALIPAY_SANDBOX</code>）。
+      <h1 class="fw-bold mb-2">商品结算</h1>
+      <p class="text-secondary mb-4">
+        点击「立即支付」后，后端调用 <code>alipay.trade.page.pay</code> 返回 Form，浏览器自动跳转支付宝收银台。
       </p>
-      <ol>
-        <li>创建订单 → Form 自动 POST 到支付宝</li>
-        <li>同步 <code>return_url</code> → 成功页</li>
-        <li>异步 <code>notify_url</code> → 验签 + 更新订单 + 返回 <code>success</code></li>
-      </ol>
-      <div id="products" class="grid" style="margin-top: 1.5rem"></div>
-      <p id="error" class="err"></p>
-      <p class="mono" id="urls" style="margin-top: 1.5rem"></p>
-    </main>
-    <script>
-      const $cfg = document.getElementById("cfg");
-      const $env = document.getElementById("env");
-      const $products = document.getElementById("products");
-      const $error = document.getElementById("error");
-      const $urls = document.getElementById("urls");
 
+      <div class="row justify-content-center">
+        <div class="col-lg-6">
+          <div class="card pay-card">
+            <div class="card-body p-4 p-md-5">
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <div class="text-secondary small">商品标题（可在 .env 配置）</div>
+                  <h2 id="title" class="h4 fw-semibold mb-0">加载中…</h2>
+                </div>
+                <span class="badge rounded-pill text-bg-light border">演示商品</span>
+              </div>
+
+              <p id="desc" class="text-secondary">…</p>
+
+              <div class="my-4">
+                <div class="text-secondary small">应付金额</div>
+                <div class="amount">¥<span id="amount">--</span></div>
+              </div>
+
+              <div class="d-grid gap-2">
+                <button id="payBtn" class="btn btn-primary btn-lg" disabled>
+                  立即支付
+                </button>
+                <button id="reloadBtn" class="btn btn-outline-secondary" type="button">
+                  刷新商品配置
+                </button>
+              </div>
+
+              <div id="alert" class="alert mt-3 d-none" role="alert"></div>
+
+              <hr class="my-4" />
+              <div class="small text-secondary">
+                <div><strong>NOTIFY_URL</strong>：<span id="notifyUrl" class="text-break">-</span></div>
+                <div class="mt-1"><strong>RETURN_URL</strong>：<span id="returnUrl" class="text-break">-</span></div>
+                <div class="mt-1"><strong>GATEWAY</strong>：<span id="gateway" class="text-break">-</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-3 border-0 bg-transparent">
+            <div class="card-body small text-secondary px-1">
+              <ol class="mb-0 ps-3">
+                <li>创建订单 → Form 自动提交支付宝</li>
+                <li>同步 <code>/return</code> → 结果页</li>
+                <li>异步 <code>/notify</code> → RSA2 验签并更新订单</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const $title = document.getElementById("title");
+      const $desc = document.getElementById("desc");
+      const $amount = document.getElementById("amount");
+      const $payBtn = document.getElementById("payBtn");
+      const $reloadBtn = document.getElementById("reloadBtn");
+      const $alert = document.getElementById("alert");
+      const $envBadge = document.getElementById("envBadge");
+      const $cfgBadge = document.getElementById("cfgBadge");
+
+      function showAlert(type, msg) {
+        $alert.className = "alert alert-" + type;
+        $alert.textContent = msg;
+        $alert.classList.remove("d-none");
+      }
+
+      function hideAlert() {
+        $alert.classList.add("d-none");
+      }
+
+      /** 注入支付宝 Form HTML 并自动提交 */
       function submitAlipayForm(payFormHtml) {
         const box = document.createElement("div");
         box.style.display = "none";
         box.innerHTML = payFormHtml;
         document.body.appendChild(box);
         const form = box.querySelector("form");
-        if (!form) throw new Error("未拿到支付宝 Form HTML");
+        if (!form) throw new Error("未拿到支付宝 Form，请检查后端返回");
         form.submit();
       }
 
-      async function boot() {
-        const health = await fetch("/api/health").then((r) => r.json());
-        $cfg.textContent = health.configured ? "密钥已配置" : "未配置密钥（编辑 .env）";
-        $cfg.className = "badge " + (health.configured ? "ok" : "warn");
-        $env.textContent = health.sandbox ? "沙箱 sandbox" : "生产 production";
-        $urls.textContent = `notify: ${health.notifyUrl}\nreturn: ${health.returnUrl}\ngateway: ${health.gateway}`;
+      async function loadProduct() {
+        hideAlert();
+        const [health, productRes] = await Promise.all([
+          fetch("/api/health").then((r) => r.json()),
+          fetch("/api/product").then((r) => r.json()),
+        ]);
 
-        const data = await fetch("/api/payment/products").then((r) => r.json());
-        $products.innerHTML = data.products
-          .map(
-            (p) => `
-          <article class="card">
-            <h2>${p.name}</h2>
-            <p class="desc">${p.description}</p>
-            <p class="price">¥${p.price} <span>${p.id}</span></p>
-            <button data-id="${p.id}" ${data.alipayConfigured ? "" : "disabled"}>支付宝支付</button>
-          </article>`
-          )
-          .join("");
+        $envBadge.textContent = health.sandbox ? "沙箱 sandbox" : "生产 production";
+        $envBadge.className =
+          "badge badge-env " + (health.sandbox ? "text-bg-info" : "text-bg-danger");
 
-        $products.querySelectorAll("button").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            $error.textContent = "";
-            btn.disabled = true;
-            btn.textContent = "跳转中…";
-            try {
-              const res = await fetch("/api/payment/create?format=json", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Accept: "application/json",
-                },
-                body: JSON.stringify({ productId: btn.dataset.id }),
-              });
-              const json = await res.json();
-              if (!res.ok) throw new Error(json.error || "下单失败");
-              submitAlipayForm(json.payForm);
-            } catch (e) {
-              $error.textContent = e.message;
-              btn.disabled = false;
-              btn.textContent = "支付宝支付";
-            }
-          });
-        });
+        if (health.configured) {
+          $cfgBadge.textContent = "密钥已配置";
+          $cfgBadge.className = "badge text-bg-success badge-env";
+          $payBtn.disabled = false;
+        } else {
+          $cfgBadge.textContent = "未配置密钥";
+          $cfgBadge.className = "badge text-bg-warning badge-env";
+          $payBtn.disabled = true;
+          showAlert("warning", "请复制 .env.example 为 .env，填入 APP_ID / PRIVATE_KEY / ALIPAY_PUBLIC_KEY 后重启服务。");
+        }
+
+        document.getElementById("notifyUrl").textContent = health.notifyUrl || "-";
+        document.getElementById("returnUrl").textContent = health.returnUrl || "-";
+        document.getElementById("gateway").textContent = health.gateway || "-";
+
+        const p = productRes.product || {};
+        $title.textContent = p.title || "未配置商品";
+        $desc.textContent = p.desc || "";
+        $amount.textContent = Number(p.amount || 0).toFixed(2);
       }
 
-      boot().catch((e) => {
-        $error.textContent = e.message;
+      $payBtn.addEventListener("click", async () => {
+        hideAlert();
+        $payBtn.disabled = true;
+        $payBtn.textContent = "正在跳转支付宝…";
+        try {
+          // 使用 JSON 便于展示错误；拿到 payForm 后自动 submit
+          const res = await fetch("/create-payment?format=json", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({}),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "创建支付失败");
+          submitAlipayForm(data.payForm);
+        } catch (err) {
+          showAlert("danger", err.message || "支付发起失败，请稍后重试");
+          $payBtn.disabled = false;
+          $payBtn.textContent = "立即支付";
+        }
       });
+
+      $reloadBtn.addEventListener("click", () => {
+        loadProduct().catch((e) => showAlert("danger", e.message));
+      });
+
+      loadProduct().catch((e) => showAlert("danger", e.message));
     </script>
   </body>
 </html>

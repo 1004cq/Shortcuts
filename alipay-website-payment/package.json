@@ -2,7 +2,7 @@
   "name": "alipay-website-payment",
   "version": "1.0.0",
   "private": true,
-  "description": "支付宝电脑网站支付（Node.js + Express），支持沙箱/生产切换",
+  "description": "支付宝电脑网站支付（Node.js + Express）— 支持沙箱/生产切换",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
