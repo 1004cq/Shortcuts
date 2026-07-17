@@ -250,7 +250,7 @@ export function Topbar({
                     升级会员
                   </Link>
                 </DropdownMenuItem>
-                {canUpload(user) && (
+                {user?.role === "admin" && (
                   <DropdownMenuItem asChild>
                     <Link href="/admin">
                       <Shield className="h-4 w-4" />

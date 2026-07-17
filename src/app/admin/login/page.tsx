@@ -11,10 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SessionUser } from "@/types";
 
-function LoginForm() {
+function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const callbackUrl = searchParams.get("callbackUrl") || "/admin";
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
@@ -28,7 +28,6 @@ function LoginForm() {
       email,
       password,
       redirect: false,
-      callbackUrl,
     });
     if (res?.error) {
       setLoading(false);
@@ -38,63 +37,67 @@ function LoginForm() {
 
     const session = await getSession();
     const user = session?.user as SessionUser | undefined;
-    const isAdminCallback =
-      callbackUrl.startsWith("/admin") && !callbackUrl.startsWith("/admin/login");
-    const dest =
-      user?.role === "admin" && (callbackUrl === "/" || isAdminCallback)
-        ? isAdminCallback
-          ? callbackUrl
-          : "/admin"
-        : callbackUrl;
+    if (user?.role !== "admin") {
+      setLoading(false);
+      setError("需要管理员账号才能进入后台");
+      return;
+    }
 
-    router.push(dest);
+    const target =
+      callbackUrl.startsWith("/admin") && !callbackUrl.startsWith("/admin/login")
+        ? callbackUrl
+        : "/admin";
+    router.push(target);
     router.refresh();
   };
 
   return (
-    <Card className="w-full max-w-md rounded-2xl border-border/80 bg-card/80 shadow-2xl shadow-primary/5 backdrop-blur">
+    <Card className="w-full max-w-md rounded-2xl border-slate-800 bg-slate-950/90 text-slate-100 shadow-2xl shadow-black/40">
       <CardHeader className="space-y-3 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/30">
           <HardDrive className="h-6 w-6" />
         </div>
-        <CardTitle className="font-display text-xl sm:text-2xl">登录 MediaVault</CardTitle>
-        <CardDescription>安全访问你的媒体文件库</CardDescription>
+        <CardTitle className="font-display text-xl sm:text-2xl">管理后台</CardTitle>
+        <CardDescription className="text-slate-400">
+          cq.imim.chat/admin · 仅管理员可登录
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">邮箱</Label>
+            <Label htmlFor="admin-email">管理员邮箱</Label>
             <Input
-              id="email"
+              id="admin-email"
               type="email"
-              autoComplete="email"
+              autoComplete="username"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder="admin@mediavault.local"
+              className="border-slate-700 bg-slate-900 text-slate-100"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">密码</Label>
+            <Label htmlFor="admin-password">密码</Label>
             <Input
-              id="password"
+              id="admin-password"
               type="password"
               autoComplete="current-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className="border-slate-700 bg-slate-900 text-slate-100"
             />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            登录
+            进入后台
           </Button>
         </form>
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          还没有账号？{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline">
-            立即注册
+        <p className="mt-6 text-center text-sm text-slate-500">
+          <Link href="/" className="font-medium text-primary hover:underline">
+            返回前台
           </Link>
         </p>
       </CardContent>
@@ -102,13 +105,12 @@ function LoginForm() {
   );
 }
 
-export default function LoginPage() {
+export default function AdminLoginPage() {
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center px-4 py-10 safe-pb">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(59,130,246,0.18),_transparent_55%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_right,transparent,rgba(16,185,129,0.05))]" />
-      <React.Suspense fallback={<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}>
-        <LoginForm />
+    <div className="relative flex min-h-[100dvh] items-center justify-center bg-[#0b1220] px-4 py-10">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(59,130,246,0.16),_transparent_55%)]" />
+      <React.Suspense fallback={<Loader2 className="h-6 w-6 animate-spin text-slate-400" />}>
+        <AdminLoginForm />
       </React.Suspense>
     </div>
   );

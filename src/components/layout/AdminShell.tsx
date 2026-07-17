@@ -29,7 +29,7 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
           </div>
           <div>
             <p className="font-display text-base font-bold">MediaVault</p>
-            <p className="text-[10px] uppercase tracking-widest text-slate-500">Admin Console</p>
+            <p className="text-[10px] tracking-wide text-slate-500">cq.imim.chat/admin</p>
           </div>
         </div>
         <nav className="flex-1 space-y-1 p-4">
