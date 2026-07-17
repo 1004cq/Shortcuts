@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>支付宝网站支付演示</title>
+    <title>支付宝电脑网站支付</title>
     <style>
       :root {
         --bg: #0b1220;
@@ -20,63 +20,64 @@
         font-family: "PingFang SC", "Segoe UI", sans-serif;
         color: var(--text);
         background:
-          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 119, 255, 0.25), transparent 55%),
+          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 119, 255, 0.28), transparent 55%),
           var(--bg);
       }
-      main {
-        max-width: 720px;
-        margin: 0 auto;
-        padding: 2.5rem 1.25rem 4rem;
-      }
+      main { max-width: 800px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
       h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
-      .sub { color: var(--muted); margin-bottom: 1.5rem; line-height: 1.6; }
+      .sub { color: var(--muted); margin-bottom: 1rem; line-height: 1.6; }
       .badge {
         display: inline-block;
-        padding: 0.2rem 0.6rem;
+        padding: 0.2rem 0.65rem;
         border-radius: 999px;
         font-size: 0.75rem;
         border: 1px solid var(--border);
         color: var(--muted);
-        margin-bottom: 1rem;
+        margin: 0 0.35rem 1rem 0;
       }
-      .badge.ok { color: #3dd68c; border-color: rgba(61, 214, 140, 0.4); }
-      .badge.warn { color: #f5a524; border-color: rgba(245, 165, 36, 0.4); }
+      .badge.ok { color: #3dd68c; border-color: rgba(61, 214, 140, 0.45); }
+      .badge.warn { color: #f5a524; border-color: rgba(245, 165, 36, 0.45); }
+      .badge.info { color: #69b1ff; border-color: rgba(105, 177, 255, 0.45); }
       .grid { display: grid; gap: 1rem; }
-      @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+      @media (min-width: 700px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
       .card {
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: 1rem;
-        padding: 1.25rem;
+        padding: 1.2rem;
       }
-      .card h2 { margin: 0 0 0.35rem; font-size: 1.15rem; }
-      .price { font-size: 1.75rem; font-weight: 700; margin: 0.75rem 0; }
-      .price span { font-size: 0.9rem; color: var(--muted); font-weight: 400; }
-      .desc { color: var(--muted); font-size: 0.9rem; min-height: 2.5rem; }
+      .card h2 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+      .price { font-size: 1.6rem; font-weight: 700; margin: 0.7rem 0; }
+      .price span { font-size: 0.85rem; color: var(--muted); font-weight: 400; }
+      .desc { color: var(--muted); font-size: 0.88rem; min-height: 2.4rem; }
       button {
         width: 100%;
-        margin-top: 1rem;
+        margin-top: 0.85rem;
         border: 0;
         border-radius: 0.75rem;
-        padding: 0.75rem 1rem;
+        padding: 0.7rem 1rem;
         background: var(--accent);
         color: #fff;
-        font-size: 1rem;
+        font-size: 0.95rem;
         font-weight: 600;
         cursor: pointer;
       }
       button:disabled { opacity: 0.55; cursor: not-allowed; }
       .err { margin-top: 1rem; color: #f31260; }
-      code { font-size: 0.8rem; color: var(--muted); word-break: break-all; }
-      ol { color: var(--muted); font-size: 0.9rem; line-height: 1.7; padding-left: 1.2rem; }
+      code, .mono { font-size: 0.78rem; color: var(--muted); word-break: break-all; }
+      ol { color: var(--muted); font-size: 0.9rem; line-height: 1.75; padding-left: 1.2rem; }
     </style>
   </head>
   <body>
     <main>
-      <div id="status" class="badge">检查配置中…</div>
-      <h1>支付宝网站支付</h1>
+      <div>
+        <span id="cfg" class="badge">检查配置…</span>
+        <span id="env" class="badge info">环境</span>
+      </div>
+      <h1>支付宝电脑网站支付</h1>
       <p class="sub">
         后端调用 <code>alipay.trade.page.pay</code>，返回 Form HTML 自动跳转收银台。
+        支持沙箱 / 生产环境切换（<code>ALIPAY_SANDBOX</code>）。
       </p>
       <ol>
         <li>创建订单 → Form 自动 POST 到支付宝</li>
@@ -85,30 +86,31 @@
       </ol>
       <div id="products" class="grid" style="margin-top: 1.5rem"></div>
       <p id="error" class="err"></p>
-      <p style="margin-top: 2rem"><code id="urls"></code></p>
+      <p class="mono" id="urls" style="margin-top: 1.5rem"></p>
     </main>
     <script>
-      const $status = document.getElementById("status");
+      const $cfg = document.getElementById("cfg");
+      const $env = document.getElementById("env");
       const $products = document.getElementById("products");
       const $error = document.getElementById("error");
       const $urls = document.getElementById("urls");
 
-      /** 将支付宝 Form HTML 注入并自动提交 */
       function submitAlipayForm(payFormHtml) {
         const box = document.createElement("div");
         box.style.display = "none";
         box.innerHTML = payFormHtml;
         document.body.appendChild(box);
         const form = box.querySelector("form");
-        if (!form) throw new Error("未拿到支付宝 Form");
+        if (!form) throw new Error("未拿到支付宝 Form HTML");
         form.submit();
       }
 
       async function boot() {
         const health = await fetch("/api/health").then((r) => r.json());
-        $status.textContent = health.alipayConfigured ? "支付宝已配置" : "未配置密钥（请编辑 .env）";
-        $status.className = "badge " + (health.alipayConfigured ? "ok" : "warn");
-        $urls.textContent = `notify: ${health.notifyUrl} · return: ${health.returnUrl}`;
+        $cfg.textContent = health.configured ? "密钥已配置" : "未配置密钥（编辑 .env）";
+        $cfg.className = "badge " + (health.configured ? "ok" : "warn");
+        $env.textContent = health.sandbox ? "沙箱 sandbox" : "生产 production";
+        $urls.textContent = `notify: ${health.notifyUrl}\nreturn: ${health.returnUrl}\ngateway: ${health.gateway}`;
 
         const data = await fetch("/api/payment/products").then((r) => r.json());
         $products.innerHTML = data.products
@@ -117,7 +119,7 @@
           <article class="card">
             <h2>${p.name}</h2>
             <p class="desc">${p.description}</p>
-            <p class="price">¥${p.price} <span>/ ${p.id === "monthly" ? "月" : "年"}</span></p>
+            <p class="price">¥${p.price} <span>${p.id}</span></p>
             <button data-id="${p.id}" ${data.alipayConfigured ? "" : "disabled"}>支付宝支付</button>
           </article>`
           )
@@ -129,7 +131,6 @@
             btn.disabled = true;
             btn.textContent = "跳转中…";
             try {
-              // 要 JSON，拿到 payForm 后前端 submit（便于错误处理）
               const res = await fetch("/api/payment/create?format=json", {
                 method: "POST",
                 headers: {

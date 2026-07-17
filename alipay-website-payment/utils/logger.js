@@ -1,6 +1,3 @@
-/**
- * 简单结构化日志（支付链路排障用）
- */
 function ts() {
   return new Date().toISOString();
 }
@@ -11,7 +8,7 @@ function log(level, tag, message, extra) {
     level,
     tag,
     message,
-    ...(extra && typeof extra === "object" ? { extra } : extra != null ? { extra } : {}),
+    ...(extra != null ? { extra } : {}),
   };
   const text = JSON.stringify(line);
   if (level === "error") console.error(text);

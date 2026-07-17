@@ -1,5 +1,5 @@
 /**
- * 支付相关路由
+ * 支付路由
  */
 const express = require("express");
 const controller = require("../controllers/payment");

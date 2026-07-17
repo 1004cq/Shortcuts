@@ -15,14 +15,14 @@
         color: #e8eefc;
       }
       .card {
-        width: min(420px, 92vw);
+        width: min(440px, 92vw);
         background: #121a2b;
         border: 1px solid #243049;
         border-radius: 1rem;
         padding: 2rem 1.5rem;
         text-align: center;
       }
-      h1 { font-size: 1.4rem; margin: 0.75rem 0; }
+      h1 { font-size: 1.35rem; margin: 0.75rem 0; }
       p { color: #93a0b8; line-height: 1.6; }
       .mono { font-family: ui-monospace, monospace; font-size: 0.75rem; word-break: break-all; }
       a {
@@ -73,7 +73,7 @@
             $icon.textContent = "✅";
             $title.textContent = "支付成功";
             $title.className = "ok";
-            $msg.textContent = data.order.subject + " · ¥" + data.order.amount;
+            $msg.textContent = `${data.order.subject} · ¥${data.order.amount} · ${data.env || ""}`;
             return;
           }
           if (attempt >= 8) {
@@ -81,7 +81,7 @@
             $title.textContent = initial === "invalid" ? "验签失败" : "等待确认";
             $title.className = "warn";
             $msg.textContent =
-              "若已扣款，请稍后刷新；演示服务重启后内存订单会丢失。生产请落库并以异步通知为准。";
+              "若已扣款请稍后刷新。最终以异步 notify 为准；演示订单在内存中，重启会丢失。";
             return;
           }
           setTimeout(() => poll(attempt + 1), 1200);

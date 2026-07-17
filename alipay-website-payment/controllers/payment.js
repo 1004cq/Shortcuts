@@ -1,32 +1,37 @@
 /**
- * 支付业务逻辑
+ * 支付业务逻辑（电脑网站支付）
  *
- * 2. 创建订单 → alipay.trade.page.pay → Form HTML 自动跳转
- * 3. return_url 展示成功页；notify_url 验签 + 更新订单 + 返回 success
- * 4. 查单 / 退款 / 日志 / 错误处理
- * 5. 密钥仅 .env；订单号唯一；notify_id 防重放
+ * 1. 创建订单 → alipay.trade.page.pay → Form HTML 自动跳转
+ * 2. return_url → 成功页；notify_url → 验签 + 更新订单 + success
+ * 3. 查单 / 退款 / 日志 / 错误处理
+ * 4. 密钥仅 .env；订单号唯一；notify_id 防重放
  */
 const config = require("../config/alipay");
 const logger = require("../utils/logger");
 const {
-  createPayForm,
+  createPagePayForm,
   queryTrade,
   refundTrade,
   verifyNotify,
   generateOutTradeNo,
-  isMobileUserAgent,
   isPaidTradeStatus,
   formatAmount,
 } = require("../utils/alipaySDK");
 
-/** @type {Map<string, object>} 演示用内存订单；生产请落库 */
+/** @type {Map<string, object>} 演示内存订单；生产请换数据库 */
 const orders = new Map();
 
-/** 已处理的支付宝 notify_id（防重放） */
-const processedNotifyIds = new Map(); // notify_id -> timestamp
+/** notify_id → 处理时间（防重放） */
+const processedNotifyIds = new Map();
 const NOTIFY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const PRODUCTS = [
+  {
+    id: "demo01",
+    name: "测试商品 A",
+    price: 0.01,
+    description: "沙箱建议使用 0.01 元测试",
+  },
   {
     id: "monthly",
     name: "MediaVault 月度会员",
@@ -58,32 +63,30 @@ function listProducts(_req, res) {
   res.json({
     products: PRODUCTS,
     alipayConfigured: config.isConfigured(),
+    env: config.envName,
+    sandbox: config.sandbox,
   });
 }
 
 /**
- * 创建支付订单
- * POST /api/payment/create  { productId }
- * - 默认返回 text/html Form（浏览器自动跳转支付宝）
- * - Accept: application/json 或 ?format=json 时返回 { payForm, outTradeNo }
+ * POST /api/payment/create
+ * 默认返回 Form HTML；?format=json 返回 { payForm, outTradeNo }
  */
 function createPayment(req, res) {
   try {
     if (!config.isConfigured()) {
-      const err = { error: "支付宝未配置，请先填写 .env 中的 ALIPAY_* 密钥" };
+      const err = { error: "支付宝未配置，请编辑 .env 填入 APPID / 应用私钥 / 支付宝公钥" };
       if (wantsJson(req)) return res.status(503).json(err);
       return res.status(503).type("html").send(`<h1>支付宝未配置</h1><p>${err.error}</p>`);
     }
 
-    const productId = req.body?.productId || req.body?.product_id;
+    const productId = req.body?.productId || req.body?.product_id || "demo01";
     const product = PRODUCTS.find((p) => p.id === productId);
     if (!product) {
-      const err = { error: "无效商品" };
-      if (wantsJson(req)) return res.status(400).json(err);
-      return res.status(400).type("html").send(`<h1>无效商品</h1>`);
+      if (wantsJson(req)) return res.status(400).json({ error: "无效商品" });
+      return res.status(400).type("html").send("<h1>无效商品</h1>");
     }
 
-    // 保证订单号唯一
     let outTradeNo = generateOutTradeNo("MV");
     let guard = 0;
     while (orders.has(outTradeNo) && guard < 5) {
@@ -99,8 +102,9 @@ function createPayment(req, res) {
       productId: product.id,
       subject: product.name,
       amount: product.price,
-      status: "pending", // pending | paid | refunded
+      status: "pending",
       tradeNo: null,
+      env: config.envName,
       createdAt: new Date().toISOString(),
       paidAt: null,
       refundedAt: null,
@@ -109,19 +113,18 @@ function createPayment(req, res) {
     };
     orders.set(outTradeNo, order);
 
-    const ua = req.get("user-agent");
-    const payForm = createPayForm({
+    const payForm = createPagePayForm({
       outTradeNo,
       subject: product.name,
       totalAmount: product.price,
       body: product.description,
-      mobile: isMobileUserAgent(ua),
     });
 
     logger.info("payment", "order created", {
       outTradeNo,
       productId: product.id,
       amount: product.price,
+      env: config.envName,
     });
 
     if (wantsJson(req)) {
@@ -129,12 +132,12 @@ function createPayment(req, res) {
         outTradeNo,
         amount: product.price,
         subject: product.name,
+        env: config.envName,
         payForm,
-        message: "请将 payForm 写入页面并自动 submit",
+        message: "将 payForm 写入页面后 form.submit() 即可跳转支付宝",
       });
     }
 
-    // 关键路径：直接返回 Form HTML，浏览器自动 POST 到支付宝
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(payForm);
   } catch (err) {
@@ -150,8 +153,7 @@ function createPayment(req, res) {
 }
 
 /**
- * 异步通知 notify_url
- * 必须：验签 → 校验订单/金额 → 幂等更新 → 返回纯文本 success
+ * POST /api/payment/notify — 异步通知（必须返回纯文本 success）
  */
 async function notifyPayment(req, res) {
   const payload = req.body || {};
@@ -160,7 +162,7 @@ async function notifyPayment(req, res) {
 
   try {
     if (!config.isConfigured()) {
-      logger.error("notify", "alipay not configured");
+      logger.error("notify", "not configured");
       return res.status(503).send("fail");
     }
 
@@ -175,23 +177,21 @@ async function notifyPayment(req, res) {
     }
 
     if (payload.app_id && payload.app_id !== config.appId) {
-      logger.error("notify", "app_id mismatch", {
-        got: payload.app_id,
-        expect: config.appId,
-      });
+      logger.error("notify", "app_id mismatch", { got: payload.app_id });
       return res.status(400).send("fail");
     }
 
-    // 防重放：同一 notify_id 只处理一次（仍返回 success）
     pruneNotifyIds();
     if (notifyId && processedNotifyIds.has(notifyId)) {
       logger.info("notify", "replay ignored", { notifyId, outTradeNo });
       return res.send("success");
     }
 
-    const tradeStatus = payload.trade_status;
-    if (!isPaidTradeStatus(tradeStatus)) {
-      logger.info("notify", "non-final status", { outTradeNo, tradeStatus });
+    if (!isPaidTradeStatus(payload.trade_status)) {
+      logger.info("notify", "non-final status", {
+        outTradeNo,
+        tradeStatus: payload.trade_status,
+      });
       if (notifyId) processedNotifyIds.set(notifyId, Date.now());
       return res.send("success");
     }
@@ -211,7 +211,6 @@ async function notifyPayment(req, res) {
       return res.status(400).send("fail");
     }
 
-    // 幂等：已支付也返回 success
     if (order.status === "paid" || order.status === "refunded") {
       if (notifyId) {
         processedNotifyIds.set(notifyId, Date.now());
@@ -244,7 +243,7 @@ async function notifyPayment(req, res) {
 }
 
 /**
- * 同步 return_url → 展示成功页（以异步通知为准，此处可查单加速展示）
+ * GET /api/payment/return — 同步回跳 → 成功页
  */
 async function returnPayment(req, res) {
   const params = Object.fromEntries(
@@ -274,7 +273,6 @@ async function returnPayment(req, res) {
             order.tradeNo = String(q.tradeNo || q.trade_no || params.trade_no || "");
             order.paidAt = new Date().toISOString();
             orders.set(outTradeNo, order);
-            logger.info("return", "order paid via query", { outTradeNo });
           }
           successUrl.searchParams.set("status", "success");
           return res.redirect(successUrl.toString());
@@ -293,9 +291,7 @@ async function returnPayment(req, res) {
   }
 }
 
-/**
- * 订单查询（本地 + 支付宝 trade.query）
- */
+/** GET /api/payment/query?outTradeNo= */
 async function queryPayment(req, res) {
   try {
     const outTradeNo = String(req.query.outTradeNo || req.query.out_trade_no || "");
@@ -317,31 +313,24 @@ async function queryPayment(req, res) {
           orders.set(outTradeNo, order);
         }
       } catch (err) {
-        logger.warn("query", "remote query failed", { outTradeNo, err: err.message });
-      }
-    } else if (!order && config.isConfigured()) {
-      try {
-        remote = await queryTrade(outTradeNo);
-      } catch (err) {
-        logger.warn("query", "remote only failed", { outTradeNo, err: err.message });
+        logger.warn("query", "remote failed", { outTradeNo, err: err.message });
       }
     }
 
-    if (!order && !remote) {
-      return res.status(404).json({ error: "订单不存在（演示服务重启后内存订单会丢失）" });
+    if (!order) {
+      return res.status(404).json({
+        error: "订单不存在（演示服务重启后内存订单会丢失，生产请落库）",
+      });
     }
 
-    return res.json({ order, remote });
+    return res.json({ order, remote, env: config.envName });
   } catch (err) {
     logger.error("query", "exception", { err: err.message });
     return res.status(500).json({ error: err.message || "查询失败" });
   }
 }
 
-/**
- * 退款（可选）
- * POST /api/payment/refund  { outTradeNo, refundAmount?, reason? }
- */
+/** POST /api/payment/refund */
 async function refundPayment(req, res) {
   try {
     if (!config.isConfigured()) {
@@ -354,9 +343,7 @@ async function refundPayment(req, res) {
     }
 
     const order = orders.get(outTradeNo);
-    if (!order) {
-      return res.status(404).json({ error: "订单不存在" });
-    }
+    if (!order) return res.status(404).json({ error: "订单不存在" });
     if (order.status !== "paid") {
       return res.status(400).json({ error: `订单状态不可退款: ${order.status}` });
     }
@@ -374,11 +361,12 @@ async function refundPayment(req, res) {
     });
 
     const code = String(result.code || "");
-    const fundChange = String(result.fundChange || result.fund_change || "");
-    // 10000 表示接口调用成功；fund_change=Y 表示发生了资金变动
     if (code && code !== "10000") {
-      logger.error("refund", "alipay rejected", { outTradeNo, result });
-      return res.status(400).json({ error: result.subMsg || result.msg || "退款失败", result });
+      logger.error("refund", "rejected", { outTradeNo, result });
+      return res.status(400).json({
+        error: result.subMsg || result.msg || "退款失败",
+        result,
+      });
     }
 
     order.status = "refunded";
@@ -386,7 +374,7 @@ async function refundPayment(req, res) {
     order.refundAmount = Number(formatAmount(refundAmount));
     orders.set(outTradeNo, order);
 
-    logger.info("refund", "ok", { outTradeNo, refundAmount, fundChange });
+    logger.info("refund", "ok", { outTradeNo, refundAmount });
     return res.json({ order, result });
   } catch (err) {
     logger.error("refund", "exception", { err: err.message });
@@ -401,6 +389,5 @@ module.exports = {
   returnPayment,
   queryPayment,
   refundPayment,
-  _orders: orders,
   PRODUCTS,
 };
