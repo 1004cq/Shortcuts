@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-import { parseFormBody, verifyAlipayNotify } from "@/lib/alipay";
+import { isAlipayConfigured, parseFormBody, verifyAlipayNotify } from "@/lib/alipay";
 import { fulfillPaidSubscription } from "@/lib/membership";
 
 /**
@@ -10,6 +10,10 @@ import { fulfillPaidSubscription } from "@/lib/membership";
  */
 export async function POST(req: Request) {
   try {
+    if (!isAlipayConfigured()) {
+      return new Response("fail", { status: 503 });
+    }
+
     const raw = await req.text();
     const payload = parseFormBody(raw);
 
