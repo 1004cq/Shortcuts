@@ -209,12 +209,12 @@ export default function ProfilePage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     maxLength={24}
-                    pattern="[a-zA-Z0-9_]{3,24}"
-                    title="3–24 位字母、数字或下划线"
+                    pattern="[a-zA-Z0-9_]{2,24}"
+                    title="2–24 位字母、数字或下划线"
                     placeholder="例如 my_name"
                   />
                   <p className="text-xs text-muted-foreground">
-                    可作为登录展示的用户 ID；3–24 位字母、数字或下划线，全局唯一
+                    可作为登录展示的用户 ID；2–24 位字母、数字或下划线，全局唯一
                   </p>
                 </div>
                 <div className="space-y-2 sm:col-span-2">

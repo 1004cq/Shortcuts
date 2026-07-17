@@ -4,7 +4,7 @@ import { z } from "zod";
 export const PHONE_REGEX = /^1[3-9]\d{9}$/;
 
 /** Public handle used as user-facing ID */
-export const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,24}$/;
+export const USERNAME_REGEX = /^[a-zA-Z0-9_]{2,24}$/;
 
 export const phoneSchema = z
   .string()
@@ -15,7 +15,7 @@ export const usernameSchema = z
   .string()
   .trim()
   .toLowerCase()
-  .regex(USERNAME_REGEX, "用户名需为 3–24 位字母、数字或下划线");
+  .regex(USERNAME_REGEX, "用户名需为 2–24 位字母、数字或下划线");
 
 export const displayNameSchema = z
   .string()
