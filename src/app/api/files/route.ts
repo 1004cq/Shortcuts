@@ -1,10 +1,8 @@
-export const dynamic = 'force-dynamic';
-
 import { z } from "zod";
 import { connectDB } from "@/lib/db";
 import { FileModel } from "@/models/File";
 import { categoryFromMime } from "@/lib/utils";
-import { saveUploadedFile } from "@/lib/storage";
+import { saveUploadedFile, isUploadBlob } from "@/lib/storage";
 import {
   ApiError,
   jsonError,
@@ -13,6 +11,8 @@ import {
   requireUploadPermission,
   withApiHandler,
 } from "@/lib/api";
+
+export const dynamic = "force-dynamic";
 
 const listQuerySchema = z.object({
   q: z.string().optional(),
@@ -97,7 +97,8 @@ export const POST = withApiHandler(async (req: Request) => {
 
   const form = await req.formData();
   const file = form.get("file");
-  if (!(file instanceof File)) {
+  // Avoid `instanceof File` — Node 18 may not expose global File (ReferenceError).
+  if (!isUploadBlob(file)) {
     throw new ApiError("请选择要上传的文件", 400);
   }
 

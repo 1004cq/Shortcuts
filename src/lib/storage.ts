@@ -11,6 +11,20 @@ import { sanitizeFilename } from "@/lib/utils";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
 
+/** Duck-typed upload part — safe on Node 18 without global `File`. */
+export type UploadBlob = {
+  name?: string;
+  type?: string;
+  size: number;
+  arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+export function isUploadBlob(value: unknown): value is UploadBlob {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.arrayBuffer === "function" && typeof v.size === "number";
+}
+
 export function ensureUploadDir() {
   if (!existsSync(UPLOAD_DIR)) {
     mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -29,7 +43,7 @@ export function resolveStoredPath(relativePath: string): string {
 }
 
 export async function saveUploadedFile(
-  file: File,
+  file: UploadBlob,
   subdir = "media"
 ): Promise<{ relativePath: string; size: number; mimeType: string; originalName: string }> {
   const root = ensureUploadDir();
