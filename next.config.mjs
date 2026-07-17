@@ -7,10 +7,16 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "2gb",
     },
+    // Keep Alipay SDK external so Node loads it after File polyfill
+    serverComponentsExternalPackages: ["alipay-sdk"],
+    instrumentationHook: true,
   },
   // Keep uploads out of the image bundler
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.externals = [...(config.externals || []), { "utf-8-validate": "commonjs utf-8-validate" }];
+    if (isServer) {
+      config.externals.push("alipay-sdk");
+    }
     return config;
   },
 };

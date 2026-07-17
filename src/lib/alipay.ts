@@ -1,3 +1,4 @@
+import "@/lib/node-file-polyfill";
 import { AlipaySdk } from "alipay-sdk";
 
 function normalizePem(raw: string | undefined): string {
