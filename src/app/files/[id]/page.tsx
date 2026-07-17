@@ -20,6 +20,7 @@ import { VideoPlayer } from "@/components/files/VideoPlayer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatBytes } from "@/lib/utils";
+import { copyToClipboard } from "@/lib/clipboard";
 import { canDownload, canStream } from "@/lib/permissions";
 import type { FileItem, SessionUser } from "@/types";
 
@@ -236,7 +237,7 @@ function Actions({
               className="w-full"
               variant="secondary"
               onClick={async () => {
-                await navigator.clipboard.writeText(shortcutUrl);
+                await copyToClipboard(shortcutUrl);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}

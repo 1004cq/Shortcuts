@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Copy, Loader2, RefreshCw } from "lucide-react";
+import { copyToClipboard } from "@/lib/clipboard";
 
 export default function ProfilePage() {
   const { data } = useSession();
@@ -61,12 +62,8 @@ export default function ProfilePage() {
   }, [loadToken]);
 
   const copy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setTokenMsg("已复制到剪贴板");
-    } catch {
-      setTokenMsg("复制失败，请手动选择");
-    }
+    const ok = await copyToClipboard(text);
+    setTokenMsg(ok ? "已复制到剪贴板" : "请在弹出框中手动复制");
   };
 
   return (

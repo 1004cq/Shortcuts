@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Link2, Check } from "lucide-react";
+import { Link2, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type ShortcutLinkButtonProps = {
   fileId: string;
-  /** Prefer the ready-made URL from upload / list API */
   shortcutUrl?: string | null;
   className?: string;
   size?: "sm" | "default";
@@ -16,6 +16,7 @@ type ShortcutLinkButtonProps = {
 
 /**
  * Copies the file-specific permanent Shortcuts URL.
+ * Uses HTTP-safe clipboard helper (site is served over http://IP).
  */
 export function ShortcutLinkButton({
   fileId,
@@ -30,20 +31,28 @@ export function ShortcutLinkButton({
   const onCopy = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (loading) return;
     setLoading(true);
     try {
-      let url = shortcutUrl || "";
+      let url = (shortcutUrl || "").trim();
       if (!url) {
-        const res = await fetch(`/api/files/${fileId}/shortcut`);
+        const res = await fetch(`/api/files/${fileId}/shortcut`, {
+          credentials: "include",
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "获取链接失败");
-        url = data.shortcutUrl || data.downloadUrl;
+        url = String(data.shortcutUrl || data.downloadUrl || "").trim();
       }
-      await navigator.clipboard.writeText(url);
+      if (!url) throw new Error("链接为空");
+
+      const ok = await copyToClipboard(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setTimeout(() => setCopied(false), 2000);
+      if (!ok) {
+        // prompt already shown by helper
+      }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "复制失败");
+      alert(err instanceof Error ? err.message : "复制失败，请打开文件详情页手动复制");
     } finally {
       setLoading(false);
     }
@@ -59,8 +68,14 @@ export function ShortcutLinkButton({
       onClick={onCopy}
       title="复制此文件的快捷指令链接"
     >
-      {copied ? <Check className="h-4 w-4 text-success" /> : <Link2 className="h-4 w-4" />}
-      {copied ? "已复制" : label}
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : copied ? (
+        <Check className="h-4 w-4 text-success" />
+      ) : (
+        <Link2 className="h-4 w-4" />
+      )}
+      {loading ? "…" : copied ? "已复制" : label}
     </Button>
   );
 }

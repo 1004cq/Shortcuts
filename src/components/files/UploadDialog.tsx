@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type UploadDialogProps = {
   open: boolean;
@@ -94,8 +95,11 @@ export function UploadDialog({ open, onOpenChange, onUploaded }: UploadDialogPro
               type="button"
               className="w-full"
               onClick={async () => {
-                await navigator.clipboard.writeText(shortcutUrl);
+                const ok = await copyToClipboard(shortcutUrl);
                 setCopied(true);
+                if (!ok) {
+                  // prompt already shown
+                }
               }}
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
