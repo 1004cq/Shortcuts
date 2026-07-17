@@ -183,21 +183,21 @@ function Actions({
   allowedDownload: boolean;
 }) {
   const [shortcutUrl, setShortcutUrl] = React.useState("");
+  const [downloadUrl, setDownloadUrl] = React.useState("");
   const [copied, setCopied] = React.useState(false);
+  const [linkError, setLinkError] = React.useState("");
 
   React.useEffect(() => {
     if (!allowedDownload) return;
     (async () => {
       try {
-        const res = await fetch("/api/me/token");
+        const res = await fetch(`/api/files/${file._id}/shortcut`);
         const data = await res.json();
-        if (!res.ok) return;
-        const base = window.location.origin;
-        setShortcutUrl(
-          `${base}/api/files/${file._id}/download?token=${encodeURIComponent(data.token)}`
-        );
-      } catch {
-        // ignore
+        if (!res.ok) throw new Error(data.error || "获取链接失败");
+        setShortcutUrl(data.shortcutUrl || "");
+        setDownloadUrl(data.downloadUrl || "");
+      } catch (err) {
+        setLinkError(err instanceof Error ? err.message : "获取链接失败");
       }
     })();
   }, [allowedDownload, file._id]);
@@ -213,6 +213,8 @@ function Actions({
     );
   }
 
+  const displayUrl = shortcutUrl || downloadUrl;
+
   return (
     <div className="space-y-3">
       <Button className="w-full" asChild>
@@ -221,27 +223,36 @@ function Actions({
           下载文件
         </a>
       </Button>
-      {shortcutUrl && (
-        <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
-          <p className="text-xs font-medium text-muted-foreground">快捷指令专用链接</p>
-          <p className="break-all font-mono text-[11px] leading-relaxed text-foreground/80">
-            {shortcutUrl}
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="w-full"
-            onClick={async () => {
-              await navigator.clipboard.writeText(shortcutUrl);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            }}
-          >
-            {copied ? "已复制" : "复制到快捷指令"}
-          </Button>
-        </div>
-      )}
+
+      <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <p className="text-sm font-semibold text-foreground">此文件的快捷指令链接</p>
+        <p className="text-xs text-muted-foreground">
+          每个文件都有独立链接，粘贴到「获取 URL 内容」即可
+        </p>
+        {displayUrl ? (
+          <>
+            <code className="block max-h-24 overflow-y-auto break-all rounded-md bg-background/80 p-2 font-mono text-[11px] leading-relaxed">
+              {displayUrl}
+            </code>
+            <Button
+              type="button"
+              className="w-full"
+              variant="secondary"
+              onClick={async () => {
+                await navigator.clipboard.writeText(displayUrl);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              {copied ? "已复制" : "复制此文件链接"}
+            </Button>
+          </>
+        ) : linkError ? (
+          <p className="text-sm text-destructive">{linkError}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">正在生成链接…</p>
+        )}
+      </div>
     </div>
   );
 }

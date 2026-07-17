@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ShortcutLinkButton } from "@/components/files/ShortcutLinkButton";
 import type { FileCategory, FileItem } from "@/types";
 
 const categoryIcon: Record<FileCategory, React.ComponentType<{ className?: string }>> = {
@@ -137,9 +138,12 @@ export function FileTable({ files, canAccessMedia, onDownload, sort, onSortChang
                         )
                       )}
                       {canAccessMedia ? (
-                        <Button size="sm" variant="ghost" onClick={() => onDownload?.(file)}>
-                          <Download className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <ShortcutLinkButton fileId={file._id} />
+                          <Button size="sm" variant="ghost" onClick={() => onDownload?.(file)}>
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </>
                       ) : (
                         <Button asChild size="sm" variant="ghost">
                           <Link href="/pricing">

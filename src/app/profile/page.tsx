@@ -117,6 +117,7 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               用 Token 可以直接在快捷指令里「获取 URL 内容」，无需登录表单。
+              每个文件都有独立链接：打开文件详情页，或在列表点「链接」一键复制。
               {!canDownload(user) && (
                 <span className="text-amber-500"> 免费用户无法下载，请先升级 VIP。</span>
               )}
