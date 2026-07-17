@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { z } from "zod";
 import { connectDB } from "@/lib/db";
@@ -11,6 +11,13 @@ import {
   requireAuth,
   withApiHandler,
 } from "@/lib/api";
+import {
+  createAlipayPayUrl,
+  isAlipayConfigured,
+  isDemoCheckoutAllowed,
+  isMobileUserAgent,
+} from "@/lib/alipay";
+import { calcMembershipWindow, generateOutTradeNo } from "@/lib/membership";
 
 const checkoutSchema = z.object({
   plan: z.enum(["monthly", "yearly"]),
@@ -18,8 +25,7 @@ const checkoutSchema = z.object({
 
 /**
  * POST /api/subscriptions
- * Demo checkout: activates VIP immediately (manual provider).
- * Replace with Stripe / 易支付 webhook flow in production.
+ * Create an Alipay checkout (or demo activate when Alipay is not configured).
  */
 export const POST = withApiHandler(async (req: Request) => {
   const sessionUser = await requireAuth();
@@ -36,13 +42,48 @@ export const POST = withApiHandler(async (req: Request) => {
 
   await connectDB();
 
-  const startsAt = new Date();
-  const endsAt = new Date(startsAt);
-  if (parsed.data.plan === "monthly") {
-    endsAt.setMonth(endsAt.getMonth() + 1);
-  } else {
-    endsAt.setFullYear(endsAt.getFullYear() + 1);
+  // —— Real Alipay checkout ——
+  if (isAlipayConfigured()) {
+    const outTradeNo = generateOutTradeNo();
+    const subject =
+      planMeta.id === "monthly" ? "MediaVault 月度会员" : "MediaVault 年度会员";
+
+    await Subscription.create({
+      userId: sessionUser.id,
+      plan: parsed.data.plan,
+      status: "pending",
+      amount: planMeta.price,
+      currency: planMeta.currency,
+      provider: "alipay",
+      providerPaymentId: outTradeNo,
+    });
+
+    const ua = req.headers.get("user-agent");
+    const payUrl = createAlipayPayUrl({
+      outTradeNo,
+      subject,
+      totalAmount: planMeta.price,
+      body: `${subject} · ${sessionUser.email}`,
+      mobile: isMobileUserAgent(ua),
+    });
+
+    return jsonOk({
+      mode: "alipay",
+      outTradeNo,
+      payUrl,
+      amount: planMeta.price,
+      plan: parsed.data.plan,
+      message: "正在跳转支付宝收银台…",
+    });
   }
+
+  // —— Demo fallback (local / not configured) ——
+  if (!isDemoCheckoutAllowed()) {
+    throw new ApiError("支付宝未配置，且演示支付已关闭", 503);
+  }
+
+  const { startsAt, endsAt } = calcMembershipWindow(parsed.data.plan);
+  const outTradeNo = generateOutTradeNo();
 
   const sub = await Subscription.create({
     userId: sessionUser.id,
@@ -53,9 +94,9 @@ export const POST = withApiHandler(async (req: Request) => {
     startsAt,
     endsAt,
     provider: "manual",
+    providerPaymentId: outTradeNo,
   });
 
-  // Admins keep admin role; others become vip
   const user = await User.findById(sessionUser.id);
   if (!user) {
     throw new ApiError("用户不存在", 404);
@@ -69,13 +110,14 @@ export const POST = withApiHandler(async (req: Request) => {
   await user.save();
 
   return jsonOk({
+    mode: "demo",
     subscription: sub,
     membership: {
       plan: user.membership,
       role: user.role,
       expiresAt: endsAt.toISOString(),
     },
-    message: "会员已激活（演示模式：无需真实支付）",
+    message: "会员已激活（演示模式：未配置支付宝密钥）",
   });
 });
 
@@ -87,5 +129,12 @@ export const GET = withApiHandler(async () => {
     .sort({ createdAt: -1 })
     .lean();
 
-  return jsonOk({ items, plans: PRICING_PLANS });
+  return jsonOk({
+    items,
+    plans: PRICING_PLANS,
+    payment: {
+      alipay: isAlipayConfigured(),
+      demo: isDemoCheckoutAllowed(),
+    },
+  });
 });

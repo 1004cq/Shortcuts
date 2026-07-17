@@ -18,7 +18,8 @@ export async function middleware(req: NextRequest) {
   const isProtected =
     pathname === "/" ||
     pathname.startsWith("/files") ||
-    pathname.startsWith("/pricing") ||
+    pathname === "/pricing" ||
+    pathname.startsWith("/pricing/") ||
     pathname.startsWith("/profile") ||
     pathname.startsWith("/admin");
 
@@ -46,6 +47,7 @@ export const config = {
     "/",
     "/files/:path*",
     "/pricing",
+    "/pricing/:path*",
     "/profile",
     "/admin/:path*",
     "/login",

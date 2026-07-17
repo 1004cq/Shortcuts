@@ -3,7 +3,6 @@ import type { MembershipPlan, SubscriptionStatus } from "@/types";
 
 /**
  * Subscription — membership purchase / renewal records.
- * Stripe / 易支付 provider fields are optional for future payment integration.
  */
 const SubscriptionSchema = new Schema(
   {
@@ -41,13 +40,20 @@ const SubscriptionSchema = new Schema(
       type: Date,
       default: null,
     },
-    /** External payment provider reference (Stripe session id / 易支付 order no.) */
+    /** Payment channel */
     provider: {
       type: String,
-      enum: ["manual", "stripe", "epay", "wechat"],
+      enum: ["manual", "alipay", "stripe", "epay", "wechat"],
       default: "manual",
     },
+    /** Merchant order no. (out_trade_no) */
     providerPaymentId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    /** Alipay trade_no / channel transaction id */
+    providerTradeNo: {
       type: String,
       default: null,
       index: true,

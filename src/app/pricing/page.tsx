@@ -17,6 +17,19 @@ export default function PricingPage() {
   const [loadingPlan, setLoadingPlan] = React.useState<MembershipPlan | null>(null);
   const [message, setMessage] = React.useState("");
   const [error, setError] = React.useState("");
+  const [alipayEnabled, setAlipayEnabled] = React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/subscriptions");
+        const data = await res.json();
+        if (res.ok) setAlipayEnabled(Boolean(data.payment?.alipay));
+      } catch {
+        setAlipayEnabled(null);
+      }
+    })();
+  }, []);
 
   const checkout = async (plan: MembershipPlan) => {
     if (plan === "free") return;
@@ -31,6 +44,12 @@ export default function PricingPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "开通失败");
+
+      if (data.mode === "alipay" && data.payUrl) {
+        setMessage("正在跳转支付宝…");
+        window.location.href = data.payUrl;
+        return;
+      }
 
       await update({
         role: data.membership.role,
@@ -59,7 +78,9 @@ export default function PricingPage() {
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
             免费用户可浏览文件列表。VIP 支持在线播放、流式传输与无限下载。
-            当前演示模式无需真实支付即可激活。
+            {alipayEnabled
+              ? " 支持支付宝安全支付开通。"
+              : " 当前为演示模式（未配置支付宝密钥时可直接激活）。"}
           </p>
           {user && (
             <p className="mt-2 text-sm text-muted-foreground">
@@ -77,12 +98,11 @@ export default function PricingPage() {
               key={plan.id}
               className={cn(
                 "relative overflow-hidden rounded-2xl transition duration-300 hover:-translate-y-1",
-                plan.highlighted && "border-primary shadow-lg shadow-primary/20 order-first md:order-none"
+                plan.highlighted &&
+                  "order-first border-primary shadow-lg shadow-primary/20 md:order-none"
               )}
             >
-              {plan.highlighted && (
-                <div className="absolute inset-x-0 top-0 h-1 bg-primary" />
-              )}
+              {plan.highlighted && <div className="absolute inset-x-0 top-0 h-1 bg-primary" />}
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="font-display text-xl">{plan.name}</CardTitle>
@@ -127,7 +147,13 @@ export default function PricingPage() {
                     ) : (
                       <Crown className="h-4 w-4" />
                     )}
-                    {user?.membership === plan.id ? "续费 / 重新激活" : "立即开通"}
+                    {alipayEnabled
+                      ? user?.membership === plan.id
+                        ? "支付宝续费"
+                        : "支付宝开通"
+                      : user?.membership === plan.id
+                        ? "续费 / 重新激活"
+                        : "立即开通"}
                   </Button>
                 )}
               </CardContent>
