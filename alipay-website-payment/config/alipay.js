@@ -10,13 +10,23 @@
  *   2. 或设置 ALIPAY_SANDBOX=true|false（未设置 GATEWAY 时生效）
  */
 
-/** 把 .env 里用 \n 写成一行的 PEM 还原成多行 */
+/**
+ * 把 .env 里的 PEM 还原成多行。
+ * 兼容：字面量 \n、以及 systemd 把 \n 吃成字母 n 的情况。
+ */
 function normalizePem(raw) {
   if (!raw) return "";
-  return String(raw)
-    .replace(/\\n/g, "\n")
-    .replace(/\r\n/g, "\n")
-    .trim();
+  let s = String(raw).trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1);
+  }
+  s = s.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+  s = s.replace(/(-----BEGIN [^-]+-----)\s*n(?=[A-Za-z0-9+/=])/g, "$1\n");
+  s = s.replace(/([A-Za-z0-9+/=])n(-----END [^-]+-----)/g, "$1\n$2");
+  if (!s.includes("\n") && s.includes("-----BEGIN")) {
+    s = s.replace(/(-----BEGIN [^-]+-----)/, "$1\n").replace(/(-----END [^-]+-----)/, "\n$1");
+  }
+  return s.trim();
 }
 
 function appBaseUrl() {

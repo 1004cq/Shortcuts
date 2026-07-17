@@ -92,9 +92,11 @@ export default function PricingPage() {
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
             免费用户可浏览文件列表。VIP 支持在线播放、流式传输与无限下载。
-            {alipayEnabled
-              ? " 支持支付宝安全支付开通。"
-              : " 当前为演示模式（未配置支付宝密钥时可直接激活）。"}
+            {alipayEnabled === null
+              ? " 正在检测支付配置…"
+              : alipayEnabled
+                ? " 支持支付宝安全支付开通。"
+                : " 当前为演示模式（未配置支付宝密钥时可直接激活）。"}
           </p>
           {user && (
             <p className="mt-2 text-sm text-muted-foreground">
