@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>支付宝网站支付演示</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: #121a2b;
+        --text: #e8eefc;
+        --muted: #93a0b8;
+        --accent: #1677ff;
+        --border: #243049;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "PingFang SC", "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 119, 255, 0.25), transparent 55%),
+          var(--bg);
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 4rem;
+      }
+      h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
+      .sub { color: var(--muted); margin-bottom: 1.5rem; line-height: 1.6; }
+      .badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+      .badge.ok { color: #3dd68c; border-color: rgba(61, 214, 140, 0.4); }
+      .badge.warn { color: #f5a524; border-color: rgba(245, 165, 36, 0.4); }
+      .grid { display: grid; gap: 1rem; }
+      @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 1.25rem;
+      }
+      .card h2 { margin: 0 0 0.35rem; font-size: 1.15rem; }
+      .price { font-size: 1.75rem; font-weight: 700; margin: 0.75rem 0; }
+      .price span { font-size: 0.9rem; color: var(--muted); font-weight: 400; }
+      .desc { color: var(--muted); font-size: 0.9rem; min-height: 2.5rem; }
+      button {
+        width: 100%;
+        margin-top: 1rem;
+        border: 0;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: var(--accent);
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      .err { margin-top: 1rem; color: #f31260; }
+      code { font-size: 0.8rem; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="status" class="badge">检查配置中…</div>
+      <h1>支付宝网站支付</h1>
+      <p class="sub">
+        选择套餐后跳转支付宝收银台。异步通知地址需公网可访问（生产用 HTTPS）。
+      </p>
+      <div id="products" class="grid"></div>
+      <p id="error" class="err"></p>
+      <p style="margin-top: 2rem"><code id="urls"></code></p>
+    </main>
+    <script>
+      const $status = document.getElementById("status");
+      const $products = document.getElementById("products");
+      const $error = document.getElementById("error");
+      const $urls = document.getElementById("urls");
+
+      async function boot() {
+        const health = await fetch("/api/health").then((r) => r.json());
+        $status.textContent = health.alipayConfigured ? "支付宝已配置" : "未配置密钥（请编辑 .env）";
+        $status.className = "badge " + (health.alipayConfigured ? "ok" : "warn");
+        $urls.textContent = `notify: ${health.notifyUrl} · return: ${health.returnUrl}`;
+
+        const data = await fetch("/api/payment/products").then((r) => r.json());
+        $products.innerHTML = data.products
+          .map(
+            (p) => `
+          <article class="card">
+            <h2>${p.name}</h2>
+            <p class="desc">${p.description}</p>
+            <p class="price">¥${p.price} <span>/ ${p.id === "monthly" ? "月" : "年"}</span></p>
+            <button data-id="${p.id}" ${data.alipayConfigured ? "" : "disabled"}>支付宝支付</button>
+          </article>`
+          )
+          .join("");
+
+        $products.querySelectorAll("button").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            $error.textContent = "";
+            btn.disabled = true;
+            btn.textContent = "跳转中…";
+            try {
+              const res = await fetch("/api/payment/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productId: btn.dataset.id }),
+              });
+              const json = await res.json();
+              if (!res.ok) throw new Error(json.error || "下单失败");
+              window.location.href = json.payUrl;
+            } catch (e) {
+              $error.textContent = e.message;
+              btn.disabled = false;
+              btn.textContent = "支付宝支付";
+            }
+          });
+        });
+      }
+
+      boot().catch((e) => {
+        $error.textContent = e.message;
+      });
+    </script>
+  </body>
+</html>

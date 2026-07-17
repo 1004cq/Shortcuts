@@ -1,3 +1,8 @@
+/**
+ * MediaVault Alipay helpers (Next.js).
+ * Standalone Express demo with the classic folder layout lives in:
+ *   alipay-website-payment/  (config / controllers / routes / utils)
+ */
 import "@/lib/node-file-polyfill";
 import { AlipaySdk } from "alipay-sdk";
 

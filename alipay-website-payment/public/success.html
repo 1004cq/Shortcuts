@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>支付结果</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: "PingFang SC", "Segoe UI", sans-serif;
+        background: #0b1220;
+        color: #e8eefc;
+      }
+      .card {
+        width: min(420px, 92vw);
+        background: #121a2b;
+        border: 1px solid #243049;
+        border-radius: 1rem;
+        padding: 2rem 1.5rem;
+        text-align: center;
+      }
+      h1 { font-size: 1.4rem; margin: 0.75rem 0; }
+      p { color: #93a0b8; line-height: 1.6; }
+      .mono { font-family: ui-monospace, monospace; font-size: 0.75rem; word-break: break-all; }
+      a {
+        display: inline-block;
+        margin-top: 1.25rem;
+        padding: 0.65rem 1.2rem;
+        border-radius: 0.7rem;
+        background: #1677ff;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .ok { color: #3dd68c; }
+      .warn { color: #f5a524; }
+      .err { color: #f31260; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div id="icon">…</div>
+      <h1 id="title">确认支付结果</h1>
+      <p id="msg">正在查询订单…</p>
+      <p class="mono" id="order"></p>
+      <a href="/">返回商品页</a>
+    </div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const outTradeNo = params.get("out_trade_no") || "";
+      const initial = params.get("status") || "";
+      const $title = document.getElementById("title");
+      const $msg = document.getElementById("msg");
+      const $order = document.getElementById("order");
+      const $icon = document.getElementById("icon");
+
+      $order.textContent = outTradeNo ? "订单号：" + outTradeNo : "缺少订单号";
+
+      async function poll(attempt = 0) {
+        if (!outTradeNo) {
+          $title.textContent = "支付异常";
+          $title.className = "err";
+          $msg.textContent = "缺少 out_trade_no";
+          return;
+        }
+        try {
+          const res = await fetch("/api/payment/query?outTradeNo=" + encodeURIComponent(outTradeNo));
+          const data = await res.json();
+          if (res.ok && data.order?.status === "paid") {
+            $icon.textContent = "✅";
+            $title.textContent = "支付成功";
+            $title.className = "ok";
+            $msg.textContent = data.order.subject + " · ¥" + data.order.amount;
+            return;
+          }
+          if (attempt >= 8) {
+            $icon.textContent = "⏳";
+            $title.textContent = initial === "invalid" ? "验签失败" : "等待确认";
+            $title.className = "warn";
+            $msg.textContent =
+              "若已扣款，请稍后刷新；演示服务重启后内存订单会丢失。生产请落库并以异步通知为准。";
+            return;
+          }
+          setTimeout(() => poll(attempt + 1), 1200);
+        } catch (e) {
+          if (attempt >= 5) {
+            $icon.textContent = "❌";
+            $title.textContent = "查询失败";
+            $title.className = "err";
+            $msg.textContent = e.message;
+            return;
+          }
+          setTimeout(() => poll(attempt + 1), 1200);
+        }
+      }
+
+      poll();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "alipay-website-payment",
+  "version": "1.0.0",
+  "private": true,
+  "description": "支付宝电脑网站 / 手机网站支付示例（Express）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18.20.0"
+  },
+  "dependencies": {
+    "alipay-sdk": "^4.14.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
