@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { connectDB } from "@/lib/db";
 import { Subscription } from "@/models/Subscription";
 import { User } from "@/models/User";
@@ -17,10 +18,30 @@ export function calcMembershipWindow(
   return { startsAt, endsAt };
 }
 
-export function generateOutTradeNo(): string {
-  const ts = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).slice(2, 10).toUpperCase();
-  return `MV${ts}${rand}`;
+/** Unique merchant order no. (timestamp + crypto random) */
+export function generateOutTradeNo(prefix = "MV"): string {
+  return `${prefix}${Date.now()}${randomBytes(4).toString("hex").toUpperCase()}`;
+}
+
+/** Whether this Alipay notify_id was already processed (anti-replay). */
+export async function hasAlipayNotifyId(outTradeNo: string, notifyId?: string | null) {
+  if (!notifyId) return false;
+  await connectDB();
+  const existing = await Subscription.exists({
+    providerPaymentId: outTradeNo,
+    alipayNotifyIds: notifyId,
+  });
+  return Boolean(existing);
+}
+
+/** Persist notify_id only after a successful / acknowledged notify handling. */
+export async function addAlipayNotifyId(outTradeNo: string, notifyId?: string | null) {
+  if (!notifyId || !outTradeNo) return;
+  await connectDB();
+  await Subscription.updateOne(
+    { providerPaymentId: outTradeNo },
+    { $addToSet: { alipayNotifyIds: notifyId } }
+  );
 }
 
 /**

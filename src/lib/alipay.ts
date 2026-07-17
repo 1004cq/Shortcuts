@@ -1,7 +1,11 @@
 /**
  * MediaVault Alipay helpers (Next.js).
- * Standalone Express demo with the classic folder layout lives in:
- *   alipay-website-payment/  (config / controllers / routes / utils)
+ * Standalone Express demo: alipay-website-payment/
+ *
+ * Flow:
+ * 1. createAlipayPayForm → alipay.trade.page.pay Form HTML
+ * 2. return_url show success; notify_url verify + fulfill + "success"
+ * 3. query / refund helpers
  */
 import "@/lib/node-file-polyfill";
 import { AlipaySdk } from "alipay-sdk";
@@ -70,7 +74,6 @@ export function alipayNotifyUrl(): string {
 }
 
 export function alipayReturnUrl(): string {
-  // Sync return hits API first (query + fulfill), then redirects to /pricing/result
   return process.env.ALIPAY_RETURN_URL || `${appBaseUrl()}/api/payments/alipay/return`;
 }
 
@@ -80,9 +83,58 @@ export function isMobileUserAgent(ua: string | null | undefined): boolean {
 }
 
 export function formatAlipayAmount(yuan: number): string {
+  if (!Number.isFinite(yuan) || yuan <= 0) {
+    throw new Error(`无效金额: ${yuan}`);
+  }
   return yuan.toFixed(2);
 }
 
+export function isPaidTradeStatus(status: string | undefined | null): boolean {
+  return status === "TRADE_SUCCESS" || status === "TRADE_FINISHED";
+}
+
+/**
+ * alipay.trade.page.pay / wap.pay — returns auto-submit Form HTML (POST).
+ */
+export function createAlipayPayForm(params: {
+  outTradeNo: string;
+  subject: string;
+  totalAmount: number;
+  body?: string;
+  mobile?: boolean;
+}): string {
+  const sdk = getAlipaySdk();
+  const amount = formatAlipayAmount(params.totalAmount);
+  const method = params.mobile ? "alipay.trade.wap.pay" : "alipay.trade.page.pay";
+  const productCode = params.mobile ? "QUICK_WAP_WAY" : "FAST_INSTANT_TRADE_PAY";
+
+  const html = sdk.pageExecute(method, "POST", {
+    notifyUrl: alipayNotifyUrl(),
+    returnUrl: alipayReturnUrl(),
+    bizContent: {
+      out_trade_no: params.outTradeNo,
+      product_code: productCode,
+      total_amount: amount,
+      subject: params.subject,
+      body: params.body || params.subject,
+    },
+  });
+
+  console.log(
+    JSON.stringify({
+      t: new Date().toISOString(),
+      tag: "alipay",
+      message: "createPayForm",
+      method,
+      outTradeNo: params.outTradeNo,
+      amount,
+    })
+  );
+
+  return html;
+}
+
+/** GET pay URL (legacy); prefer createAlipayPayForm */
 export function createAlipayPayUrl(params: {
   outTradeNo: string;
   subject: string;
@@ -117,9 +169,25 @@ export async function queryAlipayTrade(outTradeNo: string) {
   });
 }
 
+export async function refundAlipayTrade(opts: {
+  outTradeNo: string;
+  refundAmount: number;
+  refundReason?: string;
+  outRequestNo: string;
+}) {
+  const sdk = getAlipaySdk();
+  return sdk.exec("alipay.trade.refund", {
+    bizContent: {
+      out_trade_no: opts.outTradeNo,
+      refund_amount: formatAlipayAmount(opts.refundAmount),
+      refund_reason: opts.refundReason || "会员退款",
+      out_request_no: opts.outRequestNo,
+    },
+  });
+}
+
 export function verifyAlipayNotify(payload: Record<string, string>): boolean {
   const sdk = getAlipaySdk();
-  // Prefer V2 (no URL-decode) which matches most Node form parsers
   try {
     if (sdk.checkNotifySignV2(payload)) return true;
   } catch {

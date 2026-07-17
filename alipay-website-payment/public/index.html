@@ -67,7 +67,8 @@
       }
       button:disabled { opacity: 0.55; cursor: not-allowed; }
       .err { margin-top: 1rem; color: #f31260; }
-      code { font-size: 0.8rem; color: var(--muted); }
+      code { font-size: 0.8rem; color: var(--muted); word-break: break-all; }
+      ol { color: var(--muted); font-size: 0.9rem; line-height: 1.7; padding-left: 1.2rem; }
     </style>
   </head>
   <body>
@@ -75,9 +76,14 @@
       <div id="status" class="badge">检查配置中…</div>
       <h1>支付宝网站支付</h1>
       <p class="sub">
-        选择套餐后跳转支付宝收银台。异步通知地址需公网可访问（生产用 HTTPS）。
+        后端调用 <code>alipay.trade.page.pay</code>，返回 Form HTML 自动跳转收银台。
       </p>
-      <div id="products" class="grid"></div>
+      <ol>
+        <li>创建订单 → Form 自动 POST 到支付宝</li>
+        <li>同步 <code>return_url</code> → 成功页</li>
+        <li>异步 <code>notify_url</code> → 验签 + 更新订单 + 返回 <code>success</code></li>
+      </ol>
+      <div id="products" class="grid" style="margin-top: 1.5rem"></div>
       <p id="error" class="err"></p>
       <p style="margin-top: 2rem"><code id="urls"></code></p>
     </main>
@@ -86,6 +92,17 @@
       const $products = document.getElementById("products");
       const $error = document.getElementById("error");
       const $urls = document.getElementById("urls");
+
+      /** 将支付宝 Form HTML 注入并自动提交 */
+      function submitAlipayForm(payFormHtml) {
+        const box = document.createElement("div");
+        box.style.display = "none";
+        box.innerHTML = payFormHtml;
+        document.body.appendChild(box);
+        const form = box.querySelector("form");
+        if (!form) throw new Error("未拿到支付宝 Form");
+        form.submit();
+      }
 
       async function boot() {
         const health = await fetch("/api/health").then((r) => r.json());
@@ -112,14 +129,18 @@
             btn.disabled = true;
             btn.textContent = "跳转中…";
             try {
-              const res = await fetch("/api/payment/create", {
+              // 要 JSON，拿到 payForm 后前端 submit（便于错误处理）
+              const res = await fetch("/api/payment/create?format=json", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                },
                 body: JSON.stringify({ productId: btn.dataset.id }),
               });
               const json = await res.json();
               if (!res.ok) throw new Error(json.error || "下单失败");
-              window.location.href = json.payUrl;
+              submitAlipayForm(json.payForm);
             } catch (e) {
               $error.textContent = e.message;
               btn.disabled = false;

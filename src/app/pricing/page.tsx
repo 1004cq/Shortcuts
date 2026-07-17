@@ -45,9 +45,23 @@ export default function PricingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "开通失败");
 
+      if (data.mode === "alipay" && data.payForm) {
+        setMessage("正在跳转支付宝…");
+        // Inject alipay.trade.page.pay Form HTML and auto-submit
+        const box = document.createElement("div");
+        box.style.display = "none";
+        box.innerHTML = data.payForm as string;
+        document.body.appendChild(box);
+        const form = box.querySelector("form");
+        if (!form) throw new Error("未拿到支付宝支付表单");
+        form.submit();
+        return;
+      }
+
+      // Legacy fallback if an older build still returns payUrl
       if (data.mode === "alipay" && data.payUrl) {
         setMessage("正在跳转支付宝…");
-        window.location.href = data.payUrl;
+        window.location.href = data.payUrl as string;
         return;
       }
 

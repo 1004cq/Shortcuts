@@ -1,44 +1,74 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-import { isAlipayConfigured, parseFormBody, verifyAlipayNotify } from "@/lib/alipay";
-import { fulfillPaidSubscription } from "@/lib/membership";
+import {
+  isAlipayConfigured,
+  isPaidTradeStatus,
+  parseFormBody,
+  verifyAlipayNotify,
+} from "@/lib/alipay";
+import {
+  addAlipayNotifyId,
+  fulfillPaidSubscription,
+  hasAlipayNotifyId,
+} from "@/lib/membership";
 
 /**
  * POST /api/payments/alipay/notify
- * Alipay async notification — must return plain text "success".
+ * Async notify: verify sign → update order → plain text "success"
+ * Anti-replay via notify_id; idempotent when already paid.
  */
 export async function POST(req: Request) {
+  let outTradeNo = "";
   try {
     if (!isAlipayConfigured()) {
+      console.error(JSON.stringify({ tag: "alipay/notify", message: "not configured" }));
       return new Response("fail", { status: 503 });
     }
 
     const raw = await req.text();
     const payload = parseFormBody(raw);
+    outTradeNo = payload.out_trade_no || "";
+    const notifyId = payload.notify_id || "";
 
     if (!payload.sign) {
+      console.error(JSON.stringify({ tag: "alipay/notify", message: "missing sign", outTradeNo }));
       return new Response("fail", { status: 400 });
     }
 
     if (!verifyAlipayNotify(payload)) {
-      console.error("[alipay/notify] bad signature", payload.out_trade_no);
+      console.error(
+        JSON.stringify({ tag: "alipay/notify", message: "bad signature", outTradeNo, notifyId })
+      );
       return new Response("fail", { status: 400 });
     }
 
     const appId = process.env.ALIPAY_APP_ID?.trim();
     if (appId && payload.app_id && payload.app_id !== appId) {
-      console.error("[alipay/notify] app_id mismatch");
+      console.error(JSON.stringify({ tag: "alipay/notify", message: "app_id mismatch" }));
       return new Response("fail", { status: 400 });
     }
 
-    const tradeStatus = payload.trade_status;
-    if (tradeStatus !== "TRADE_SUCCESS" && tradeStatus !== "TRADE_FINISHED") {
-      // Waiting for buyer / closed — acknowledge without fulfilling
+    if (outTradeNo && notifyId && (await hasAlipayNotifyId(outTradeNo, notifyId))) {
+      console.log(
+        JSON.stringify({ tag: "alipay/notify", message: "replay ignored", outTradeNo, notifyId })
+      );
       return new Response("success");
     }
 
-    const outTradeNo = payload.out_trade_no;
+    if (!isPaidTradeStatus(payload.trade_status)) {
+      console.log(
+        JSON.stringify({
+          tag: "alipay/notify",
+          message: "non-final",
+          outTradeNo,
+          tradeStatus: payload.trade_status,
+        })
+      );
+      await addAlipayNotifyId(outTradeNo, notifyId);
+      return new Response("success");
+    }
+
     if (!outTradeNo) {
       return new Response("fail", { status: 400 });
     }
@@ -51,17 +81,42 @@ export async function POST(req: Request) {
     });
 
     if (!result.ok && result.reason === "order_not_found") {
-      console.error("[alipay/notify] order not found", outTradeNo);
+      console.error(JSON.stringify({ tag: "alipay/notify", message: "order_not_found", outTradeNo }));
       return new Response("fail", { status: 404 });
     }
     if (!result.ok && result.reason === "amount_mismatch") {
-      console.error("[alipay/notify] amount mismatch", outTradeNo, payload.total_amount);
+      console.error(
+        JSON.stringify({
+          tag: "alipay/notify",
+          message: "amount_mismatch",
+          outTradeNo,
+          total_amount: payload.total_amount,
+        })
+      );
       return new Response("fail", { status: 400 });
     }
 
+    await addAlipayNotifyId(outTradeNo, notifyId);
+
+    console.log(
+      JSON.stringify({
+        tag: "alipay/notify",
+        message: result.already ? "already_active" : "fulfilled",
+        outTradeNo,
+        tradeNo: payload.trade_no,
+      })
+    );
+
     return new Response("success");
   } catch (err) {
-    console.error("[alipay/notify]", err);
+    console.error(
+      JSON.stringify({
+        tag: "alipay/notify",
+        message: "exception",
+        outTradeNo,
+        err: err instanceof Error ? err.message : String(err),
+      })
+    );
     return new Response("fail", { status: 500 });
   }
 }

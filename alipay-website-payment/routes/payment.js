@@ -11,5 +11,6 @@ router.post("/create", controller.createPayment);
 router.post("/notify", controller.notifyPayment);
 router.get("/return", controller.returnPayment);
 router.get("/query", controller.queryPayment);
+router.post("/refund", controller.refundPayment);
 
 module.exports = router;

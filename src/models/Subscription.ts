@@ -58,6 +58,19 @@ const SubscriptionSchema = new Schema(
       default: null,
       index: true,
     },
+    /** Processed Alipay notify_id list (anti-replay) */
+    alipayNotifyIds: {
+      type: [String],
+      default: [],
+    },
+    refundAmount: {
+      type: Number,
+      default: null,
+    },
+    refundedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

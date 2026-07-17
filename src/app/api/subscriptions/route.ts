@@ -12,7 +12,7 @@ import {
   withApiHandler,
 } from "@/lib/api";
 import {
-  createAlipayPayUrl,
+  createAlipayPayForm,
   isAlipayConfigured,
   isDemoCheckoutAllowed,
   isMobileUserAgent,
@@ -25,7 +25,7 @@ const checkoutSchema = z.object({
 
 /**
  * POST /api/subscriptions
- * Create an Alipay checkout (or demo activate when Alipay is not configured).
+ * Alipay: create pending order + return page.pay Form HTML for auto-submit.
  */
 export const POST = withApiHandler(async (req: Request) => {
   const sessionUser = await requireAuth();
@@ -42,9 +42,14 @@ export const POST = withApiHandler(async (req: Request) => {
 
   await connectDB();
 
-  // —— Real Alipay checkout ——
   if (isAlipayConfigured()) {
-    const outTradeNo = generateOutTradeNo();
+    let outTradeNo = generateOutTradeNo();
+    for (let i = 0; i < 5; i += 1) {
+      const clash = await Subscription.exists({ providerPaymentId: outTradeNo });
+      if (!clash) break;
+      outTradeNo = generateOutTradeNo();
+    }
+
     const subject =
       planMeta.id === "monthly" ? "MediaVault 月度会员" : "MediaVault 年度会员";
 
@@ -56,10 +61,11 @@ export const POST = withApiHandler(async (req: Request) => {
       currency: planMeta.currency,
       provider: "alipay",
       providerPaymentId: outTradeNo,
+      alipayNotifyIds: [],
     });
 
     const ua = req.headers.get("user-agent");
-    const payUrl = createAlipayPayUrl({
+    const payForm = createAlipayPayForm({
       outTradeNo,
       subject,
       totalAmount: planMeta.price,
@@ -70,14 +76,13 @@ export const POST = withApiHandler(async (req: Request) => {
     return jsonOk({
       mode: "alipay",
       outTradeNo,
-      payUrl,
+      payForm,
       amount: planMeta.price,
       plan: parsed.data.plan,
       message: "正在跳转支付宝收银台…",
     });
   }
 
-  // —— Demo fallback (local / not configured) ——
   if (!isDemoCheckoutAllowed()) {
     throw new ApiError("支付宝未配置，且演示支付已关闭", 503);
   }

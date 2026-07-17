@@ -1,68 +1,64 @@
 # 支付宝电脑网站支付示例
 
-独立 Express 演示，目录结构：
-
 ```text
 alipay-website-payment/
-├── config/alipay.js       # 配置（读 .env）
-├── controllers/payment.js # 下单 / 通知 / 回跳 / 查单
-├── routes/payment.js      # 路由
-├── utils/alipaySDK.js     # alipay-sdk 封装
+├── config/alipay.js          # 配置（仅读环境变量）
+├── controllers/payment.js    # 下单 / 通知 / 回跳 / 查单 / 退款
+├── routes/payment.js
+├── utils/
+│   ├── alipaySDK.js          # page.pay Form、验签、查单、退款
+│   └── logger.js
 ├── public/
-│   ├── index.html         # 商品页
-│   └── success.html       # 支付结果页
+│   ├── index.html
+│   └── success.html
 ├── .env.example
 ├── server.js
 └── package.json
 ```
 
-> MediaVault 主站已内置同等能力（`src/lib/alipay.ts` + `/api/payments/alipay/*`）。本目录用于单独调试支付宝对接。
+## 流程（与开放平台文档一致）
+
+1. **创建支付订单**  
+   后端调用 `alipay.trade.page.pay`（手机端 `wap.pay`），`pageExecute(..., 'POST')` 生成 **Form HTML**，浏览器自动提交跳转支付宝。
+
+2. **支付成功**
+   - **同步 `return_url`** → `/api/payment/return` → 跳转 `success.html` 展示结果  
+   - **异步 `notify_url`** → `/api/payment/notify`：**验签** → 校验 `app_id` / 金额 → **幂等更新订单** → 返回纯文本 `success`  
+   - 以异步通知为准；同步回跳仅用于展示
+
+3. **额外**
+   - 订单查询：`GET /api/payment/query?outTradeNo=`
+   - 退款（可选）：`POST /api/payment/refund`
+   - 结构化日志：`utils/logger.js`
+   - 统一错误处理与 HTTP 状态码
+
+4. **安全**
+   - 密钥只放 `.env`（已 gitignore）
+   - 订单号：`MV` + 时间戳 + `crypto.randomBytes`（唯一）
+   - 防重放：记录 `notify_id`，重复通知直接 `success` 且不重复改单
+   - 已支付订单再次通知：幂等返回 `success`
 
 ## 快速开始
 
 ```bash
 cd alipay-website-payment
 npm install
-cp .env.example .env
-# 编辑 .env，填入开放平台 APPID、应用私钥、支付宝公钥
-npm start
+cp .env.example .env   # 填入 APPID / 应用私钥 / 支付宝公钥
+npm start              # http://localhost:4000
 ```
 
-浏览器打开 `http://localhost:4000`。
-
-## 开放平台准备
-
-1. [支付宝开放平台](https://open.alipay.com) 创建应用  
-2. 开通能力：**电脑网站支付**、**手机网站支付**  
-3. 设置接口加签方式（RSA2），上传应用公钥，保存**支付宝公钥**  
-4. 密钥格式：本项目默认 `ALIPAY_KEY_TYPE=PKCS8`（与密钥工具「PKCS8」一致）
-
-## 回调地址
-
-| 类型 | 默认地址 | 说明 |
-|------|----------|------|
-| 异步通知 `notify_url` | `{APP_URL}/api/payment/notify` | 必须公网可达；验签成功后返回纯文本 `success` |
-| 同步回跳 `return_url` | `{APP_URL}/api/payment/return` | 仅展示；最终以异步通知 / 查单为准 |
-
-本地调试可用内网穿透（如 frp / ngrok）把 `APP_URL` 指到本机。
+本地联调异步通知需公网 HTTPS（或内网穿透），并把 `APP_URL` / `ALIPAY_NOTIFY_URL` 指到可访问地址。
 
 ## API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/health` | 健康检查与配置状态 |
-| GET | `/api/payment/products` | 商品列表 |
-| POST | `/api/payment/create` | `{ "productId": "monthly" \| "yearly" }` → `{ payUrl }` |
-| POST | `/api/payment/notify` | 支付宝异步通知 |
-| GET | `/api/payment/return` | 同步回跳 → 重定向 `success.html` |
-| GET | `/api/payment/query?outTradeNo=` | 查询订单 |
+| POST | `/api/payment/create` | 默认返回 Form HTML；`?format=json` 返回 `{ payForm, outTradeNo }` |
+| POST | `/api/payment/notify` | 异步通知（验签 + 更新订单） |
+| GET | `/api/payment/return` | 同步回跳 → 成功页 |
+| GET | `/api/payment/query` | 查本地订单 + `trade.query` |
+| POST | `/api/payment/refund` | `{ outTradeNo, refundAmount?, reason? }` |
 
-## 与 MediaVault 对接
+## MediaVault
 
-生产环境请在 MediaVault 根目录 `.env` / 服务器 `/opt/mediavault/.env` 配置相同的 `ALIPAY_*` 变量，会员页会跳转官方收银台并在通知中开通 VIP。不必单独长期运行本演示服务。
-
-## 注意
-
-- **不要**把 `.env` 提交到 Git  
-- 演示订单存在内存中，进程重启会丢失；生产务必落库并做幂等  
-- Node 18 已内置 `File`/`Blob` polyfill，与腾讯云当前运行环境兼容  
+主站已实现同等流程（`src/lib/alipay.ts`）。生产把 `ALIPAY_*` 配到 MediaVault 环境变量即可，不必长期运行本演示服务。
