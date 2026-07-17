@@ -7,16 +7,19 @@ import { cn } from "@/lib/utils";
 
 type ShortcutLinkButtonProps = {
   fileId: string;
+  /** Prefer the ready-made URL from upload / list API */
+  shortcutUrl?: string | null;
   className?: string;
   size?: "sm" | "default";
   label?: string;
 };
 
 /**
- * Fetches and copies the file-specific Shortcuts download URL.
+ * Copies the file-specific permanent Shortcuts URL.
  */
 export function ShortcutLinkButton({
   fileId,
+  shortcutUrl,
   className,
   size = "sm",
   label = "链接",
@@ -29,10 +32,13 @@ export function ShortcutLinkButton({
     e.stopPropagation();
     setLoading(true);
     try {
-      const res = await fetch(`/api/files/${fileId}/shortcut`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "获取链接失败");
-      const url = data.shortcutUrl || data.downloadUrl;
+      let url = shortcutUrl || "";
+      if (!url) {
+        const res = await fetch(`/api/files/${fileId}/shortcut`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "获取链接失败");
+        url = data.shortcutUrl || data.downloadUrl;
+      }
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);

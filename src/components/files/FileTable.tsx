@@ -139,7 +139,7 @@ export function FileTable({ files, canAccessMedia, onDownload, sort, onSortChang
                       )}
                       {canAccessMedia ? (
                         <>
-                          <ShortcutLinkButton fileId={file._id} />
+                          <ShortcutLinkButton fileId={file._id} shortcutUrl={file.shortcutUrl} />
                           <Button size="sm" variant="ghost" onClick={() => onDownload?.(file)}>
                             <Download className="h-4 w-4" />
                           </Button>

@@ -182,25 +182,24 @@ function Actions({
   file: FileItem;
   allowedDownload: boolean;
 }) {
-  const [shortcutUrl, setShortcutUrl] = React.useState("");
-  const [downloadUrl, setDownloadUrl] = React.useState("");
+  const [shortcutUrl, setShortcutUrl] = React.useState(file.shortcutUrl || "");
   const [copied, setCopied] = React.useState(false);
   const [linkError, setLinkError] = React.useState("");
 
   React.useEffect(() => {
-    if (!allowedDownload) return;
+    setShortcutUrl(file.shortcutUrl || "");
+    if (file.shortcutUrl) return;
     (async () => {
       try {
         const res = await fetch(`/api/files/${file._id}/shortcut`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "获取链接失败");
         setShortcutUrl(data.shortcutUrl || "");
-        setDownloadUrl(data.downloadUrl || "");
       } catch (err) {
         setLinkError(err instanceof Error ? err.message : "获取链接失败");
       }
     })();
-  }, [allowedDownload, file._id]);
+  }, [file._id, file.shortcutUrl]);
 
   if (!allowedDownload) {
     return (
@@ -212,8 +211,6 @@ function Actions({
       </Button>
     );
   }
-
-  const displayUrl = shortcutUrl || downloadUrl;
 
   return (
     <div className="space-y-3">
@@ -227,19 +224,19 @@ function Actions({
       <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
         <p className="text-sm font-semibold text-foreground">此文件的快捷指令链接</p>
         <p className="text-xs text-muted-foreground">
-          每个文件都有独立链接，粘贴到「获取 URL 内容」即可
+          上传时自动生成，永久有效，粘贴到「获取 URL 内容」即可
         </p>
-        {displayUrl ? (
+        {shortcutUrl ? (
           <>
             <code className="block max-h-24 overflow-y-auto break-all rounded-md bg-background/80 p-2 font-mono text-[11px] leading-relaxed">
-              {displayUrl}
+              {shortcutUrl}
             </code>
             <Button
               type="button"
               className="w-full"
               variant="secondary"
               onClick={async () => {
-                await navigator.clipboard.writeText(displayUrl);
+                await navigator.clipboard.writeText(shortcutUrl);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}

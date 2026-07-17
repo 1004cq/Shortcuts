@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
@@ -11,8 +11,16 @@ import {
   requireAdmin,
   withApiHandler,
 } from "@/lib/api";
+import { buildShareUrl, generateShareToken } from "@/lib/utils";
 
 type Ctx = { params: { id: string } };
+
+async function ensureShareToken(id: string, current?: string | null) {
+  if (current) return current;
+  const token = generateShareToken();
+  await FileModel.updateOne({ _id: id }, { $set: { shareToken: token } });
+  return token;
+}
 
 export const GET = withApiHandler(async (_req: Request, ctx: unknown) => {
   await requireAuth();
@@ -28,9 +36,16 @@ export const GET = withApiHandler(async (_req: Request, ctx: unknown) => {
     throw new ApiError("文件不存在", 404);
   }
 
+  const shareToken = await ensureShareToken(id, item.shareToken as string | undefined);
   await FileModel.updateOne({ _id: id }, { $inc: { viewCount: 1 } });
 
-  return jsonOk({ item });
+  return jsonOk({
+    item: {
+      ...item,
+      shareToken,
+      shortcutUrl: buildShareUrl(shareToken),
+    },
+  });
 });
 
 export const DELETE = withApiHandler(async (_req: Request, ctx: unknown) => {

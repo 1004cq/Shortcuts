@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { connectDB } from "@/lib/db";
 import { FileModel } from "@/models/File";
-import { categoryFromMime } from "@/lib/utils";
+import { buildShareUrl, categoryFromMime, generateShareToken } from "@/lib/utils";
 import { saveUploadedFile, isUploadBlob } from "@/lib/storage";
 import {
   ApiError,
@@ -14,6 +14,19 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function withShortcutUrl<T extends { shareToken?: string | null; toObject?: () => unknown }>(
+  doc: T
+) {
+  const plain =
+    typeof doc.toObject === "function"
+      ? (doc.toObject() as Record<string, unknown>)
+      : ({ ...doc } as Record<string, unknown>);
+  const token = (plain.shareToken as string | undefined) || undefined;
+  return {
+    ...plain,
+    shortcutUrl: token ? buildShareUrl(token) : null,
+  };
+}
 const listQuerySchema = z.object({
   q: z.string().optional(),
   category: z
@@ -69,7 +82,7 @@ export const GET = withApiHandler(async (req: Request) => {
   };
 
   const skip = (page - 1) * limit;
-  const [items, total] = await Promise.all([
+  const [rawItems, total] = await Promise.all([
     FileModel.find(filter)
       .sort(sortMap[sort] || sortMap.newest)
       .skip(skip)
@@ -78,6 +91,17 @@ export const GET = withApiHandler(async (req: Request) => {
       .lean(),
     FileModel.countDocuments(filter),
   ]);
+
+  // Backfill shareToken for legacy files (uploaded before auto-link)
+  const items = [];
+  for (const item of rawItems) {
+    let shareToken = item.shareToken as string | undefined;
+    if (!shareToken) {
+      shareToken = generateShareToken();
+      await FileModel.updateOne({ _id: item._id }, { $set: { shareToken } });
+    }
+    items.push(withShortcutUrl({ ...item, shareToken }));
+  }
 
   return jsonOk({
     items,
@@ -125,6 +149,8 @@ export const POST = withApiHandler(async (req: Request) => {
   const category =
     (form.get("category") as string) || categoryFromMime(saved.mimeType);
 
+  const shareToken = generateShareToken();
+
   const doc = await FileModel.create({
     name: name.slice(0, 255),
     originalName: saved.originalName,
@@ -138,7 +164,16 @@ export const POST = withApiHandler(async (req: Request) => {
     tags,
     uploadedBy: admin.id,
     isPublic: true,
+    shareToken,
   });
 
-  return jsonOk({ item: doc }, { status: 201 } as ResponseInit);
+  const item = withShortcutUrl(doc);
+  return jsonOk(
+    {
+      item,
+      shortcutUrl: item.shortcutUrl,
+      message: "上传成功，已自动生成快捷指令链接",
+    },
+    { status: 201 } as ResponseInit
+  );
 });

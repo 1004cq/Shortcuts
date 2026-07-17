@@ -45,6 +45,10 @@ export interface FileItem {
   downloadCount: number;
   viewCount: number;
   isPublic: boolean;
+  /** Permanent Shortcuts share token (f_...) */
+  shareToken?: string;
+  /** Ready-made Shortcuts download URL */
+  shortcutUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

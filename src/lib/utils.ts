@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { nanoid } from "nanoid";
 import type { FileCategory } from "@/types";
 
 /** Merge Tailwind classes safely (shadcn pattern). */
@@ -45,4 +46,15 @@ export function sanitizeFilename(name: string): string {
 /** Absolute app URL helper */
 export function getAppUrl(): string {
   return process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3000";
+}
+
+/** Permanent per-file share token for Shortcuts links */
+export function generateShareToken(): string {
+  return `f_${nanoid(24)}`;
+}
+
+/** Build public Shortcuts download URL from shareToken */
+export function buildShareUrl(shareToken: string): string {
+  const base = getAppUrl().replace(/\/$/, "");
+  return `${base}/l/${shareToken}`;
 }

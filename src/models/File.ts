@@ -70,6 +70,17 @@ const FileSchema = new Schema(
       type: Boolean,
       default: true,
     },
+    /**
+     * Permanent unguessable token — generated on upload.
+     * Shortcuts URL: /l/{shareToken} (no login required).
+     */
+    shareToken: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+      default: null,
+    },
   },
   {
     timestamps: true,
