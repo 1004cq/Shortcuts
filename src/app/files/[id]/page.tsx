@@ -87,15 +87,18 @@ export default function FileDetailPage() {
 
         {/* Immersive player layout for video */}
         {isVideo ? (
-          <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div className="min-w-0">
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_320px]">
+            <div className="min-w-0 overflow-hidden rounded-2xl border border-border/70 bg-black/40">
               {allowedStream ? (
                 <VideoPlayer src={streamUrl} type={file.mimeType} />
               ) : (
-                <VipGate kind="播放视频" />
+                <div className="p-3 sm:p-4">
+                  <VipGate kind="播放视频" />
+                </div>
               )}
             </div>
-            <aside className="space-y-4 rounded-xl border border-border bg-card/60 p-5 lg:sticky lg:top-24 lg:self-start">
+            <aside className="space-y-4 rounded-2xl border border-border/70 bg-card/60 p-4 sm:p-5 lg:sticky lg:top-24 lg:self-start">
+              <h1 className="font-display text-lg font-bold leading-snug sm:text-xl">{file.name}</h1>
               <FileMeta file={file} />
               <Actions
                 file={file}
@@ -105,14 +108,14 @@ export default function FileDetailPage() {
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
-            <div className="rounded-xl border border-border bg-card/60 p-6">
-              <div className="mb-6 flex items-start gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                  {isAudio ? <Music className="h-7 w-7" /> : <FileText className="h-7 w-7" />}
+            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 sm:p-6">
+              <div className="mb-5 flex items-start gap-3 sm:mb-6 sm:gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary sm:h-14 sm:w-14">
+                  {isAudio ? <Music className="h-6 w-6 sm:h-7 sm:w-7" /> : <FileText className="h-6 w-6 sm:h-7 sm:w-7" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h1 className="font-display text-2xl font-bold">{file.name}</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">{file.originalName}</p>
+                  <h1 className="font-display text-xl font-bold leading-snug sm:text-2xl">{file.name}</h1>
+                  <p className="mt-1 truncate text-sm text-muted-foreground">{file.originalName}</p>
                 </div>
               </div>
 
@@ -154,20 +157,20 @@ function FileMeta({ file }: { file: FileItem }) {
       {file.description && <p className="text-muted-foreground">{file.description}</p>}
       <dl className="grid grid-cols-2 gap-3 text-muted-foreground">
         <div>
-          <dt className="text-xs uppercase tracking-wide">大小</dt>
-          <dd className="text-foreground">{formatBytes(file.size)}</dd>
+          <dt className="text-[10px] uppercase tracking-wide sm:text-xs">大小</dt>
+          <dd className="text-sm text-foreground sm:text-base">{formatBytes(file.size)}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide">下载次数</dt>
-          <dd className="text-foreground">{file.downloadCount}</dd>
+          <dt className="text-[10px] uppercase tracking-wide sm:text-xs">下载次数</dt>
+          <dd className="text-sm text-foreground sm:text-base">{file.downloadCount}</dd>
         </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide">类型</dt>
-          <dd className="truncate text-foreground">{file.mimeType}</dd>
+        <div className="col-span-2 sm:col-span-1">
+          <dt className="text-[10px] uppercase tracking-wide sm:text-xs">类型</dt>
+          <dd className="truncate text-sm text-foreground sm:text-base">{file.mimeType}</dd>
         </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide">上传时间</dt>
-          <dd className="text-foreground">
+        <div className="col-span-2 sm:col-span-1">
+          <dt className="text-[10px] uppercase tracking-wide sm:text-xs">上传时间</dt>
+          <dd className="text-sm text-foreground sm:text-base">
             {file.createdAt ? format(new Date(file.createdAt), "yyyy-MM-dd HH:mm") : "—"}
           </dd>
         </div>
@@ -222,14 +225,14 @@ function Actions({
         </a>
       </Button>
 
-      <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+      <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <p className="text-sm font-semibold text-foreground">此文件的快捷指令链接</p>
         <p className="text-xs text-muted-foreground">
           上传时自动生成，永久有效，粘贴到「获取 URL 内容」即可
         </p>
         {shortcutUrl ? (
           <>
-            <code className="block max-h-24 overflow-y-auto break-all rounded-md bg-background/80 p-2 font-mono text-[11px] leading-relaxed">
+            <code className="block max-h-24 overflow-y-auto break-all rounded-lg bg-background/80 p-2.5 font-mono text-[11px] leading-relaxed">
               {shortcutUrl}
             </code>
             <Button

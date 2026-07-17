@@ -26,8 +26,8 @@ export function MobileTabBar() {
     : tabs;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
-      <ul className="flex h-16 items-stretch justify-around">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/90 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
+      <ul className="flex h-14 items-stretch justify-around sm:h-16">
         {items.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
@@ -35,11 +35,18 @@ export function MobileTabBar() {
               <Link
                 href={href}
                 className={cn(
-                  "flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition",
+                  "flex h-full min-h-0 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition sm:gap-1 sm:text-[11px]",
                   active ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_rgba(59,130,246,0.55)]")} />
+                <span
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-xl transition sm:h-9 sm:w-9",
+                    active && "bg-primary/15"
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </span>
                 {label}
               </Link>
             </li>

@@ -45,14 +45,14 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="relative flex min-h-[100dvh] items-center justify-center px-4 py-10 safe-pb">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(59,130,246,0.18),_transparent_55%)]" />
-      <Card className="w-full max-w-md border-border/80 bg-card/80 shadow-2xl shadow-primary/5 backdrop-blur">
+      <Card className="w-full max-w-md rounded-2xl border-border/80 bg-card/80 shadow-2xl shadow-primary/5 backdrop-blur">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/30">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/30">
             <HardDrive className="h-6 w-6" />
           </div>
-          <CardTitle className="font-display text-2xl">创建 MediaVault</CardTitle>
+          <CardTitle className="font-display text-xl sm:text-2xl">创建 MediaVault</CardTitle>
           <CardDescription>邮箱注册 · 密码加密存储 · 验证后即可使用</CardDescription>
         </CardHeader>
         <CardContent>

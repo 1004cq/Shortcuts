@@ -49,15 +49,15 @@ export default function PricingPage() {
   return (
     <AppShell showUpload={false} title="会员套餐">
       <div className="mx-auto max-w-5xl animate-slide-up">
-        <div className="mb-10 text-center">
+        <div className="mb-6 text-center sm:mb-10">
           <Badge variant="vip" className="mb-3">
             <Sparkles className="mr-1 h-3 w-3" />
             MediaVault VIP
           </Badge>
-          <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">
+          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
             解锁下载与流媒体播放
           </h1>
-          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
             免费用户可浏览文件列表。VIP 支持在线播放、流式传输与无限下载。
             当前演示模式无需真实支付即可激活。
           </p>
@@ -71,13 +71,13 @@ export default function PricingPage() {
           )}
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
           {PRICING_PLANS.map((plan) => (
             <Card
               key={plan.id}
               className={cn(
-                "relative overflow-hidden transition duration-300 hover:-translate-y-1",
-                plan.highlighted && "border-primary shadow-lg shadow-primary/20"
+                "relative overflow-hidden rounded-2xl transition duration-300 hover:-translate-y-1",
+                plan.highlighted && "border-primary shadow-lg shadow-primary/20 order-first md:order-none"
               )}
             >
               {plan.highlighted && (

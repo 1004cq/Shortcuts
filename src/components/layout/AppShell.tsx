@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { MainContent } from "./MainContent";
 import { MobileTabBar } from "./MobileTabBar";
+import { cn } from "@/lib/utils";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -14,8 +15,8 @@ type AppShellProps = {
   showSearch?: boolean;
   showUpload?: boolean;
   title?: string;
-  /** Hide mobile tab bar (e.g. immersive player) */
   hideMobileTabBar?: boolean;
+  contentClassName?: string;
 };
 
 /**
@@ -29,13 +30,14 @@ export function AppShell({
   showUpload = true,
   title,
   hideMobileTabBar = false,
+  contentClassName,
 }: AppShellProps) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen bg-background text-foreground">
+      <div className="flex min-h-[100dvh] bg-background text-foreground">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Suspense fallback={<div className="h-16 border-b border-border" />}>
+          <Suspense fallback={<div className="h-14 border-b border-border sm:h-16" />}>
             <Topbar
               viewMode={viewMode}
               onViewModeChange={onViewModeChange}
@@ -44,7 +46,12 @@ export function AppShell({
               title={title}
             />
           </Suspense>
-          <MainContent>{children}</MainContent>
+          <MainContent
+            className={cn(hideMobileTabBar && "pb-6 md:pb-8", contentClassName)}
+            withTabPad={!hideMobileTabBar}
+          >
+            {children}
+          </MainContent>
         </div>
         {!hideMobileTabBar && <MobileTabBar />}
       </div>

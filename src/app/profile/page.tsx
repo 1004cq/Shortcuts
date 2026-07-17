@@ -68,10 +68,10 @@ export default function ProfilePage() {
 
   return (
     <AppShell showUpload={false} title="个人中心">
-      <div className="mx-auto max-w-4xl space-y-6 animate-slide-up">
-        <Card>
+      <div className="mx-auto max-w-4xl space-y-4 animate-slide-up sm:space-y-6">
+        <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle className="font-display">账号信息</CardTitle>
+            <CardTitle className="font-display text-lg sm:text-xl">账号信息</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div>
