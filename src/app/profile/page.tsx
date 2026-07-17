@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { membershipLabel, roleLabel, canDownload } from "@/lib/permissions";
 import type { SessionUser } from "@/types";
 import {
@@ -21,8 +22,20 @@ import {
 import { Copy, Loader2, RefreshCw } from "lucide-react";
 import { copyToClipboard } from "@/lib/clipboard";
 
+type ProfileItem = {
+  id: string;
+  email: string;
+  name: string;
+  username?: string | null;
+  phone?: string | null;
+  role: string;
+  membership: string;
+  membershipExpiresAt?: string | null;
+  emailVerified: boolean;
+};
+
 export default function ProfilePage() {
-  const { data } = useSession();
+  const { data, update } = useSession();
   const user = data?.user as SessionUser | undefined;
   const [logs, setLogs] = React.useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = React.useState(true);
@@ -30,6 +43,28 @@ export default function ProfilePage() {
   const [downloadTemplate, setDownloadTemplate] = React.useState("");
   const [tokenLoading, setTokenLoading] = React.useState(false);
   const [tokenMsg, setTokenMsg] = React.useState("");
+
+  const [profile, setProfile] = React.useState<ProfileItem | null>(null);
+  const [name, setName] = React.useState("");
+  const [username, setUsername] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [profileMsg, setProfileMsg] = React.useState("");
+  const [profileError, setProfileError] = React.useState("");
+
+  const applyProfile = React.useCallback((item: ProfileItem) => {
+    setProfile(item);
+    setName(item.name || "");
+    setUsername(item.username || "");
+    setPhone(item.phone || "");
+  }, []);
+
+  const loadProfile = React.useCallback(async () => {
+    const res = await fetch("/api/me");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "加载资料失败");
+    applyProfile(data.item as ProfileItem);
+  }, [applyProfile]);
 
   const loadToken = React.useCallback(async (rotate = false) => {
     setTokenLoading(true);
@@ -51,20 +86,67 @@ export default function ProfilePage() {
   React.useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/downloads?scope=me&limit=20");
-        const data = await res.json();
-        if (res.ok) setLogs(data.items || []);
+        const [logsRes] = await Promise.all([
+          fetch("/api/downloads?scope=me&limit=20"),
+          loadProfile().catch(() => undefined),
+        ]);
+        const data = await logsRes.json();
+        if (logsRes.ok) setLogs(data.items || []);
       } finally {
         setLoading(false);
       }
     })();
     loadToken(false);
-  }, [loadToken]);
+  }, [loadToken, loadProfile]);
 
   const copy = async (text: string) => {
     const ok = await copyToClipboard(text);
     setTokenMsg(ok ? "已复制到剪贴板" : "请在弹出框中手动复制");
   };
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setProfileMsg("");
+    setProfileError("");
+    try {
+      const payload: Record<string, string | null> = {
+        name: name.trim(),
+        phone: phone.trim() ? phone.trim() : null,
+      };
+      if (username.trim()) {
+        payload.username = username.trim().toLowerCase();
+      }
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "保存失败");
+      const item = data.item as ProfileItem;
+      applyProfile(item);
+      await update({
+        name: item.name,
+        username: item.username,
+        phone: item.phone,
+      });
+      setProfileMsg("资料已更新");
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const displayId = profile?.id || user?.id || "—";
+  const displayEmail = profile?.email || user?.email || "—";
+  const displayRole = profile?.role || user?.role || "user";
+  const displayMembership = profile?.membership || user?.membership || "free";
+  const displayVerified =
+    profile?.emailVerified ?? user?.emailVerified ?? false;
+  const displayExpires =
+    profile?.membershipExpiresAt ?? user?.membershipExpiresAt ?? null;
 
   return (
     <AppShell showUpload={false} title="个人中心">
@@ -73,37 +155,89 @@ export default function ProfilePage() {
           <CardHeader>
             <CardTitle className="font-display text-lg sm:text-xl">账号信息</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-xs text-muted-foreground">昵称</p>
-              <p className="font-medium">{user?.name}</p>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-muted-foreground">系统用户 ID</p>
+                <p className="break-all font-mono text-sm font-medium">{displayId}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">邮箱</p>
+                <p className="font-medium">{displayEmail}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">角色</p>
+                <Badge variant="secondary">{roleLabel(displayRole as SessionUser["role"])}</Badge>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">会员</p>
+                <Badge variant={displayMembership === "free" ? "outline" : "vip"}>
+                  {membershipLabel(displayMembership as SessionUser["membership"])}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">邮箱验证</p>
+                <p className="font-medium">{displayVerified ? "已验证" : "未验证"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">会员到期</p>
+                <p className="font-medium">
+                  {displayExpires
+                    ? format(new Date(displayExpires), "yyyy-MM-dd HH:mm")
+                    : "—"}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">邮箱</p>
-              <p className="font-medium">{user?.email}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">角色</p>
-              <Badge variant="secondary">{roleLabel(user?.role || "user")}</Badge>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">会员</p>
-              <Badge variant={user?.membership === "free" ? "outline" : "vip"}>
-                {membershipLabel(user?.membership || "free")}
-              </Badge>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">邮箱验证</p>
-              <p className="font-medium">{user?.emailVerified ? "已验证" : "未验证"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">会员到期</p>
-              <p className="font-medium">
-                {user?.membershipExpiresAt
-                  ? format(new Date(user.membershipExpiresAt), "yyyy-MM-dd HH:mm")
-                  : "—"}
-              </p>
-            </div>
+
+            <form onSubmit={saveProfile} className="space-y-4 border-t border-border pt-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="name">昵称</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={80}
+                    required
+                    placeholder="显示名称"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="username">用户名（用户 ID）</Label>
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    maxLength={24}
+                    pattern="[a-zA-Z0-9_]{3,24}"
+                    title="3–24 位字母、数字或下划线"
+                    placeholder="例如 my_name"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    可作为登录展示的用户 ID；3–24 位字母、数字或下划线，全局唯一
+                  </p>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="phone">绑定手机号</Label>
+                  <Input
+                    id="phone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    inputMode="numeric"
+                    maxLength={11}
+                    placeholder="11 位中国大陆手机号，可留空解绑"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="submit" disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  保存资料
+                </Button>
+                {profileMsg && <p className="text-sm text-success">{profileMsg}</p>}
+                {profileError && <p className="text-sm text-destructive">{profileError}</p>}
+              </div>
+            </form>
           </CardContent>
         </Card>
 

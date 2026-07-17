@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { z } from "zod";
 import mongoose from "mongoose";
@@ -10,6 +10,13 @@ import {
   requireAdmin,
   withApiHandler,
 } from "@/lib/api";
+import {
+  displayNameSchema,
+  normalizePhone,
+  normalizeUsername,
+  phoneSchema,
+  usernameSchema,
+} from "@/lib/user-profile";
 
 export const GET = withApiHandler(async (req: Request) => {
   await requireAdmin();
@@ -26,6 +33,8 @@ export const GET = withApiHandler(async (req: Request) => {
     filter.$or = [
       { email: { $regex: escaped, $options: "i" } },
       { name: { $regex: escaped, $options: "i" } },
+      { username: { $regex: escaped, $options: "i" } },
+      { phone: { $regex: escaped, $options: "i" } },
     ];
   }
 
@@ -46,6 +55,10 @@ export const GET = withApiHandler(async (req: Request) => {
 
 const patchSchema = z.object({
   userId: z.string(),
+  name: displayNameSchema.optional(),
+  email: z.string().email().max(254).optional(),
+  username: usernameSchema.optional().nullable(),
+  phone: phoneSchema.optional().nullable(),
   role: z.enum(["user", "vip", "admin"]).optional(),
   membership: z.enum(["free", "monthly", "yearly"]).optional(),
   membershipExpiresAt: z.string().datetime().nullable().optional(),
@@ -57,7 +70,8 @@ export const PATCH = withApiHandler(async (req: Request) => {
   const body = await req.json();
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
-    throw new ApiError("参数无效", 400);
+    const msg = parsed.error.issues[0]?.message || "参数无效";
+    throw new ApiError(msg, 400);
   }
 
   if (!mongoose.Types.ObjectId.isValid(parsed.data.userId)) {
@@ -74,6 +88,54 @@ export const PATCH = withApiHandler(async (req: Request) => {
     throw new ApiError("用户不存在", 404);
   }
 
+  if (parsed.data.name !== undefined) {
+    user.name = parsed.data.name;
+  }
+
+  if (parsed.data.email !== undefined) {
+    const email = parsed.data.email.toLowerCase().trim();
+    const emailTaken = await User.findOne({
+      email,
+      _id: { $ne: user._id },
+    }).lean();
+    if (emailTaken) {
+      throw new ApiError("该邮箱已被使用", 409);
+    }
+    user.email = email;
+  }
+
+  if (parsed.data.username !== undefined) {
+    if (parsed.data.username === null || parsed.data.username === "") {
+      user.username = null;
+    } else {
+      const username = normalizeUsername(parsed.data.username);
+      const taken = await User.findOne({
+        username,
+        _id: { $ne: user._id },
+      }).lean();
+      if (taken) {
+        throw new ApiError("该用户名已被占用", 409);
+      }
+      user.username = username;
+    }
+  }
+
+  if (parsed.data.phone !== undefined) {
+    if (parsed.data.phone === null || parsed.data.phone === "") {
+      user.phone = null;
+    } else {
+      const phone = normalizePhone(parsed.data.phone);
+      const taken = await User.findOne({
+        phone,
+        _id: { $ne: user._id },
+      }).lean();
+      if (taken) {
+        throw new ApiError("该手机号已被绑定", 409);
+      }
+      user.phone = phone;
+    }
+  }
+
   if (parsed.data.role) user.role = parsed.data.role;
   if (parsed.data.membership) user.membership = parsed.data.membership;
   if (parsed.data.membershipExpiresAt !== undefined) {
@@ -85,6 +147,26 @@ export const PATCH = withApiHandler(async (req: Request) => {
     user.emailVerified = parsed.data.emailVerified;
   }
 
-  await user.save();
+  // Keep role/membership consistent for common admin shortcuts
+  if (parsed.data.role === "user" && parsed.data.membership === undefined) {
+    user.membership = "free";
+    if (parsed.data.membershipExpiresAt === undefined) {
+      user.membershipExpiresAt = null;
+    }
+  }
+  if (parsed.data.role === "vip" && user.membership === "free") {
+    user.membership = "monthly";
+  }
+
+  try {
+    await user.save();
+  } catch (err) {
+    const code = (err as { code?: number }).code;
+    if (code === 11000) {
+      throw new ApiError("邮箱、用户名或手机号已被占用", 409);
+    }
+    throw err;
+  }
+
   return jsonOk({ item: user });
 });

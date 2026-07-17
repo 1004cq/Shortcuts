@@ -9,6 +9,8 @@ declare module "next-auth" {
       membership: MembershipPlan;
       membershipExpiresAt?: string | null;
       emailVerified: boolean;
+      username?: string | null;
+      phone?: string | null;
     } & DefaultSession["user"];
   }
 
@@ -18,6 +20,8 @@ declare module "next-auth" {
     membership: MembershipPlan;
     membershipExpiresAt?: string | null;
     emailVerified: boolean;
+    username?: string | null;
+    phone?: string | null;
   }
 }
 
@@ -28,5 +32,7 @@ declare module "next-auth/jwt" {
     membership?: MembershipPlan;
     membershipExpiresAt?: string | null;
     emailVerified?: boolean;
+    username?: string | null;
+    phone?: string | null;
   }
 }

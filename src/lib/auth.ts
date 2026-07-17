@@ -82,6 +82,8 @@ export const authOptions: NextAuthOptions = {
           id: user._id.toString(),
           email: user.email,
           name: user.name,
+          username: user.username ?? null,
+          phone: user.phone ?? null,
           role,
           membership,
           membershipExpiresAt: expiresAt,
@@ -100,9 +102,11 @@ export const authOptions: NextAuthOptions = {
         token.membership = u.membership;
         token.membershipExpiresAt = u.membershipExpiresAt ?? null;
         token.emailVerified = u.emailVerified;
+        token.username = u.username ?? null;
+        token.phone = u.phone ?? null;
       }
 
-      // Allow client-side session.update() to refresh membership after checkout
+      // Allow client-side session.update() to refresh membership / profile
       if (trigger === "update" && session) {
         const s = session as Partial<SessionUser>;
         if (s.role) token.role = s.role;
@@ -112,6 +116,8 @@ export const authOptions: NextAuthOptions = {
         }
         if (s.emailVerified !== undefined) token.emailVerified = s.emailVerified;
         if (s.name) token.name = s.name;
+        if (s.username !== undefined) token.username = s.username;
+        if (s.phone !== undefined) token.phone = s.phone;
       }
 
       return token;
@@ -124,6 +130,8 @@ export const authOptions: NextAuthOptions = {
         u.membership = token.membership as SessionUser["membership"];
         u.membershipExpiresAt = (token.membershipExpiresAt as string | null) ?? null;
         u.emailVerified = Boolean(token.emailVerified);
+        u.username = (token.username as string | null | undefined) ?? null;
+        u.phone = (token.phone as string | null | undefined) ?? null;
       }
       return session;
     },

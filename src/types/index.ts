@@ -23,6 +23,10 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  /** Public handle (user-facing ID); null if not set */
+  username?: string | null;
+  /** Bound mobile number; null if not bound */
+  phone?: string | null;
   role: UserRole;
   membership: MembershipPlan;
   membershipExpiresAt?: string | null;

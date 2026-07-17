@@ -26,6 +26,30 @@ const UserSchema = new Schema(
       trim: true,
       maxlength: 80,
     },
+    /**
+     * Public handle (user-facing ID). Unique when set.
+     * MongoDB `_id` remains the immutable system ID.
+     */
+    username: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+      trim: true,
+      lowercase: true,
+      maxlength: 24,
+      index: true,
+    },
+    /** Bound China mobile number. Unique when set. */
+    phone: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+      trim: true,
+      maxlength: 11,
+      index: true,
+    },
     role: {
       type: String,
       enum: ["user", "vip", "admin"] satisfies UserRole[],

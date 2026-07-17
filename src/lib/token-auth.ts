@@ -28,6 +28,8 @@ function toSessionUser(doc: {
   _id: { toString(): string };
   email: string;
   name: string;
+  username?: string | null;
+  phone?: string | null;
   role: SessionUser["role"];
   membership: SessionUser["membership"];
   membershipExpiresAt?: Date | null;
@@ -38,6 +40,8 @@ function toSessionUser(doc: {
     id: doc._id.toString(),
     email: doc.email,
     name: doc.name,
+    username: doc.username ?? null,
+    phone: doc.phone ?? null,
     role: doc.role,
     membership: doc.membership,
     membershipExpiresAt: doc.membershipExpiresAt

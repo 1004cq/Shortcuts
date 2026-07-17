@@ -6,6 +6,14 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -20,6 +28,8 @@ type UserRow = {
   _id: string;
   name: string;
   email: string;
+  username?: string | null;
+  phone?: string | null;
   role: string;
   membership: string;
   emailVerified: boolean;
@@ -27,11 +37,41 @@ type UserRow = {
   membershipExpiresAt?: string | null;
 };
 
+type EditForm = {
+  name: string;
+  email: string;
+  username: string;
+  phone: string;
+  role: "user" | "vip" | "admin";
+  membership: "free" | "monthly" | "yearly";
+  membershipExpiresAt: string;
+  emailVerified: boolean;
+};
+
+function toLocalInputValue(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromLocalInputValue(local: string): string | null {
+  if (!local.trim()) return null;
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 export default function AdminUsersPage() {
   const [q, setQ] = React.useState("");
   const [items, setItems] = React.useState<UserRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
+  const [editing, setEditing] = React.useState<UserRow | null>(null);
+  const [form, setForm] = React.useState<EditForm | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [editError, setEditError] = React.useState("");
 
   const load = React.useCallback(async (query = "") => {
     setLoading(true);
@@ -52,7 +92,22 @@ export default function AdminUsersPage() {
     load();
   }, [load]);
 
-  const setRole = async (userId: string, role: "user" | "vip" | "admin") => {
+  const openEdit = (u: UserRow) => {
+    setEditing(u);
+    setEditError("");
+    setForm({
+      name: u.name || "",
+      email: u.email || "",
+      username: u.username || "",
+      phone: u.phone || "",
+      role: (u.role as EditForm["role"]) || "user",
+      membership: (u.membership as EditForm["membership"]) || "free",
+      membershipExpiresAt: toLocalInputValue(u.membershipExpiresAt),
+      emailVerified: Boolean(u.emailVerified),
+    });
+  };
+
+  const setRoleQuick = async (userId: string, role: "user" | "vip" | "admin") => {
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -71,13 +126,46 @@ export default function AdminUsersPage() {
     if (res.ok) load(q);
   };
 
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing || !form) return;
+    setSaving(true);
+    setEditError("");
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: editing._id,
+          name: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
+          username: form.username.trim() ? form.username.trim().toLowerCase() : null,
+          phone: form.phone.trim() ? form.phone.trim() : null,
+          role: form.role,
+          membership: form.membership,
+          membershipExpiresAt: fromLocalInputValue(form.membershipExpiresAt),
+          emailVerified: form.emailVerified,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "保存失败");
+      setEditing(null);
+      setForm(null);
+      await load(q);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <AdminShell title="用户管理">
       <div className="mb-4 flex gap-2">
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="搜索邮箱 / 昵称"
+          placeholder="搜索邮箱 / 昵称 / 用户名 / 手机号"
           className="max-w-sm border-slate-700 bg-slate-900 text-slate-100"
         />
         <Button onClick={() => load(q)}>搜索</Button>
@@ -96,6 +184,7 @@ export default function AdminUsersPage() {
             <TableHeader>
               <TableRow className="border-slate-800 hover:bg-transparent">
                 <TableHead className="text-slate-400">用户</TableHead>
+                <TableHead className="text-slate-400">手机 / 用户名</TableHead>
                 <TableHead className="text-slate-400">角色</TableHead>
                 <TableHead className="text-slate-400">会员</TableHead>
                 <TableHead className="text-slate-400">验证</TableHead>
@@ -110,28 +199,43 @@ export default function AdminUsersPage() {
                     <div>
                       <p className="font-medium text-slate-100">{u.name}</p>
                       <p className="text-xs text-slate-500">{u.email}</p>
+                      <p className="mt-0.5 font-mono text-[10px] text-slate-600">{u._id}</p>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-300">
+                    <div>{u.phone || "—"}</div>
+                    <div className="text-xs text-slate-500">@{u.username || "未设置"}</div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary">{u.role}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={u.membership === "free" ? "outline" : "vip"}>
-                      {u.membership}
-                    </Badge>
+                    <div className="space-y-1">
+                      <Badge variant={u.membership === "free" ? "outline" : "vip"}>
+                        {u.membership}
+                      </Badge>
+                      {u.membershipExpiresAt && (
+                        <p className="text-[10px] text-slate-500">
+                          至 {format(new Date(u.membershipExpiresAt), "yyyy-MM-dd")}
+                        </p>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>{u.emailVerified ? "是" : "否"}</TableCell>
                   <TableCell className="text-slate-400">
                     {format(new Date(u.createdAt), "yyyy-MM-dd")}
                   </TableCell>
                   <TableCell className="space-x-1 text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setRole(u._id, "user")}>
+                    <Button size="sm" variant="secondary" onClick={() => openEdit(u)}>
+                      编辑
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setRoleQuick(u._id, "user")}>
                       免费
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setRole(u._id, "vip")}>
+                    <Button size="sm" variant="ghost" onClick={() => setRoleQuick(u._id, "vip")}>
                       VIP
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setRole(u._id, "admin")}>
+                    <Button size="sm" variant="ghost" onClick={() => setRoleQuick(u._id, "admin")}>
                       管理员
                     </Button>
                   </TableCell>
@@ -141,6 +245,147 @@ export default function AdminUsersPage() {
           </Table>
         </div>
       )}
+
+      <Dialog
+        open={Boolean(editing && form)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditing(null);
+            setForm(null);
+            setEditError("");
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-800 bg-slate-950 text-slate-100 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>编辑用户</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              可修改资料、角色与会员状态。系统 ID：{editing?._id}
+            </DialogDescription>
+          </DialogHeader>
+          {form && (
+            <form onSubmit={saveEdit} className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-name">昵称</Label>
+                  <Input
+                    id="edit-name"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="border-slate-700 bg-slate-900"
+                    required
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-email">邮箱</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="border-slate-700 bg-slate-900"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-username">用户名</Label>
+                  <Input
+                    id="edit-username"
+                    value={form.username}
+                    onChange={(e) => setForm({ ...form, username: e.target.value })}
+                    className="border-slate-700 bg-slate-900"
+                    placeholder="可留空清除"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">手机号</Label>
+                  <Input
+                    id="edit-phone"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    className="border-slate-700 bg-slate-900"
+                    placeholder="可留空清除"
+                    maxLength={11}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">角色</Label>
+                  <select
+                    id="edit-role"
+                    value={form.role}
+                    onChange={(e) =>
+                      setForm({ ...form, role: e.target.value as EditForm["role"] })
+                    }
+                    className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-900 px-3 text-sm"
+                  >
+                    <option value="user">user（免费）</option>
+                    <option value="vip">vip</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-membership">会员套餐</Label>
+                  <select
+                    id="edit-membership"
+                    value={form.membership}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        membership: e.target.value as EditForm["membership"],
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-900 px-3 text-sm"
+                  >
+                    <option value="free">free</option>
+                    <option value="monthly">monthly</option>
+                    <option value="yearly">yearly</option>
+                  </select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-expires">会员到期时间</Label>
+                  <Input
+                    id="edit-expires"
+                    type="datetime-local"
+                    value={form.membershipExpiresAt}
+                    onChange={(e) =>
+                      setForm({ ...form, membershipExpiresAt: e.target.value })
+                    }
+                    className="border-slate-700 bg-slate-900"
+                  />
+                  <p className="text-xs text-slate-500">留空表示无到期时间 / 清除到期</p>
+                </div>
+                <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={form.emailVerified}
+                    onChange={(e) =>
+                      setForm({ ...form, emailVerified: e.target.checked })
+                    }
+                  />
+                  邮箱已验证
+                </label>
+              </div>
+              {editError && <p className="text-sm text-red-400">{editError}</p>}
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditing(null);
+                    setForm(null);
+                  }}
+                >
+                  取消
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  保存
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminShell>
   );
 }
