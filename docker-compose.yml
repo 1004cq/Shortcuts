@@ -1,0 +1,28 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mediavault_mongo:/data/db
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: mediavault-dev-secret-change-in-production
+      MONGODB_URI: mongodb://mongo:27017/mediavault
+      UPLOAD_DIR: /app/uploads
+      APP_URL: http://localhost:3000
+    volumes:
+      - mediavault_uploads:/app/uploads
+    depends_on:
+      - mongo
+
+volumes:
+  mediavault_mongo:
+  mediavault_uploads:

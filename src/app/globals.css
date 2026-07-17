@@ -1,0 +1,97 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 91% 60%; /* #3b82f6 */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --success: 160 84% 39%; /* #10b981 */
+    --success-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+    --sidebar: 210 40% 98%;
+    --radius: 0.75rem;
+    --gradient-spotlight: rgba(59, 130, 246, 0.08);
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 7%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 16%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 217 91% 60%;
+    --sidebar: 222 47% 8%;
+    --gradient-spotlight: rgba(59, 130, 246, 0.12);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, var(--gradient-spotlight), transparent),
+      linear-gradient(to bottom, transparent, transparent);
+    min-height: 100vh;
+  }
+
+  .font-display {
+    font-family: "Outfit", "IBM Plex Sans", system-ui, sans-serif;
+  }
+}
+
+/* Video.js theme tweaks */
+.vjs-theme-mediavault .vjs-big-play-button {
+  border-radius: 9999px !important;
+  border: none !important;
+  background: hsl(var(--primary) / 0.9) !important;
+  width: 3.5rem !important;
+  height: 3.5rem !important;
+  line-height: 3.5rem !important;
+  margin-left: -1.75rem !important;
+  margin-top: -1.75rem !important;
+}
+
+.vjs-theme-mediavault .vjs-control-bar {
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75)) !important;
+}
