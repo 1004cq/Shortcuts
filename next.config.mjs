@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Smaller deploy artifact for low-RAM VPS (no remote `next build`)
+  output: "standalone",
   experimental: {
     // Allow large media uploads via App Router FormData
     serverActions: {
