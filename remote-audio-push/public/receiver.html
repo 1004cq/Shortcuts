@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Remote Audio · 接收端</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; min-height: 100dvh; padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #e2e8f0;
+        background:
+          radial-gradient(ellipse at top, rgba(56,189,248,.25), transparent 55%),
+          #070b14;
+      }
+      .card {
+        max-width: 520px; margin: 0 auto; padding: 18px; border-radius: 20px;
+        background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+        backdrop-filter: blur(18px);
+      }
+      h1 { font-size: 1.35rem; margin: 0 0 8px; }
+      p { color: #94a3b8; font-size: .92rem; line-height: 1.45; }
+      label { display:block; font-size:.78rem; color:#94a3b8; margin: 12px 0 6px; }
+      input {
+        width: 100%; box-sizing: border-box; border-radius: 12px; border: 1px solid rgba(255,255,255,.14);
+        background: rgba(0,0,0,.35); color: #fff; padding: 12px;
+      }
+      button {
+        width: 100%; margin-top: 12px; border: 0; border-radius: 12px; padding: 13px;
+        font-weight: 700; background: linear-gradient(135deg,#34d399,#38bdf8); color: #04120c;
+      }
+      .pill {
+        display:inline-flex; gap:8px; align-items:center; padding:6px 10px; border-radius:999px;
+        background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); font-size: .8rem;
+      }
+      .dot { width:8px; height:8px; border-radius:50%; background:#f87171; }
+      .dot.on { background:#34d399; }
+      #now { margin-top: 14px; font-size: .95rem; }
+      #log {
+        margin-top: 12px; max-height: 180px; overflow:auto; font-family: ui-monospace, Menlo, monospace;
+        font-size: 11px; color: #cbd5e1; white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>iPhone 接收端</h1>
+      <p>
+        建议「添加到主屏幕」并保持前台。首次需点一次「启动监听」以解锁音频播放权限。
+        也可由快捷指令打开本页并自动启动。
+      </p>
+      <div class="pill"><span class="dot" id="dot"></span><span id="st">离线</span></div>
+
+      <label>AUTH_TOKEN</label>
+      <input id="token" type="password" />
+      <label>我的 userId</label>
+      <input id="userId" placeholder="与控制台一致" />
+      <button id="start" type="button">启动监听 / 解锁音频</button>
+      <div id="now">待命…</div>
+      <div id="log"></div>
+    </div>
+
+    <script>
+      /**
+       * Receiver core — also mirrored in shortcuts/receiver-core.js for Shortcuts docs.
+       */
+      const $ = (id) => document.getElementById(id);
+      let socket = null;
+      let audio = null;
+      let unlocked = false;
+
+      function log(m) {
+        $("log").textContent = `[${new Date().toLocaleTimeString()}] ${m}\n` + $("log").textContent;
+      }
+
+      function setOnline(on, text) {
+        $("dot").classList.toggle("on", on);
+        $("st").textContent = text || (on ? "在线" : "离线");
+      }
+
+      async function unlockAudio() {
+        try {
+          if (!audio) audio = new Audio();
+          audio.preload = "auto";
+          // Silent unlock trick for iOS autoplay policy
+          audio.src =
+            "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+          await audio.play();
+          audio.pause();
+          unlocked = true;
+          log("audio unlocked");
+        } catch (e) {
+          log("unlock failed: " + e.message);
+        }
+      }
+
+      async function playRemote(payload) {
+        const t0 = performance.now();
+        $("now").textContent = `收到指令：${payload.title || "音频"}`;
+        try {
+          if (!audio) audio = new Audio();
+          audio.pause();
+          audio.src = payload.audioUrl;
+          audio.volume = typeof payload.volume === "number" ? payload.volume : 1;
+          // Start fetch ASAP
+          audio.load();
+          await audio.play();
+          const ms = Math.round(performance.now() - t0);
+          $("now").textContent = `播放中：${payload.title || ""} · 启动耗时 ${ms}ms`;
+          log(`playing ${payload.commandId} in ${ms}ms`);
+        } catch (e) {
+          $("now").textContent = `播放失败：${e.message}`;
+          log("play error " + e.message);
+        }
+      }
+
+      function stopRemote() {
+        if (audio) {
+          audio.pause();
+          audio.removeAttribute("src");
+          audio.load();
+        }
+        $("now").textContent = "已停止";
+        log("stopped");
+      }
+
+      function connect() {
+        const token = $("token").value.trim();
+        const userId = $("userId").value.trim();
+        if (!token || !userId) {
+          alert("填写 token 与 userId");
+          return;
+        }
+        localStorage.setItem("rap_rx", JSON.stringify({ token, userId }));
+
+        if (socket) socket.disconnect();
+        const path = location.pathname.includes("/realtime")
+          ? "/realtime/socket.io"
+          : "/socket.io";
+
+        socket = io({
+          path,
+          auth: { token, deviceId: "iphone-" + (localStorage.getItem("rap_device") || Math.random().toString(36).slice(2, 8)) },
+          transports: ["websocket"],
+          upgrade: false,
+          reconnection: true,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 400,
+          reconnectionDelayMax: 4000,
+          timeout: 8000,
+        });
+
+        if (!localStorage.getItem("rap_device") && socket.io?.opts) {
+          localStorage.setItem("rap_device", socket.io.opts.auth?.deviceId?.replace?.("iphone-", "") || "");
+        }
+
+        socket.on("connect", () => {
+          setOnline(true, "已连接，加入房间中…");
+          socket.emit("join", { userId, role: "receiver" }, (ack) => {
+            setOnline(true, ack?.ok ? `在线 · ${userId}` : "加入失败");
+            log("join " + JSON.stringify(ack));
+          });
+        });
+        socket.on("disconnect", (r) => {
+          setOnline(false, "断开: " + r);
+          log("disconnect " + r);
+        });
+        socket.on("connect_error", (e) => {
+          setOnline(false, "错误: " + e.message);
+          log("connect_error " + e.message);
+        });
+        socket.on("play", (payload) => {
+          log("event play");
+          playRemote(payload);
+        });
+        socket.on("stop", () => stopRemote());
+        socket.on("command", (payload) => {
+          if (payload?.type === "play") playRemote(payload);
+          if (payload?.type === "stop") stopRemote();
+        });
+
+        // keepalive RTT
+        setInterval(() => {
+          if (socket?.connected) {
+            socket.emit("ping_ts", Date.now(), () => {});
+          }
+        }, 15000);
+      }
+
+      $("start").onclick = async () => {
+        await unlockAudio();
+        connect();
+      };
+
+      // Autofill + auto-start from query (Shortcuts can open with ?token=&userId=&autostart=1)
+      (function init() {
+        const q = new URLSearchParams(location.search);
+        try {
+          const saved = JSON.parse(localStorage.getItem("rap_rx") || "{}");
+          $("token").value = q.get("token") || saved.token || "";
+          $("userId").value = q.get("userId") || saved.userId || "";
+        } catch {}
+        if (q.get("autostart") === "1" && $("token").value && $("userId").value) {
+          $("start").click();
+        }
+      })();
+    </script>
+  </body>
+</html>

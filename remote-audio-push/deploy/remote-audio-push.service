@@ -1,0 +1,17 @@
+[Unit]
+Description=MediaVault Remote Audio Push (Socket.io)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/remote-audio-push
+EnvironmentFile=/opt/remote-audio-push/.env
+ExecStart=/usr/bin/node /opt/remote-audio-push/server.js
+Restart=always
+RestartSec=2
+User=root
+# Low-latency niceness (optional)
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target
