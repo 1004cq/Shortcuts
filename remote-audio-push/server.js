@@ -37,8 +37,36 @@ app.use(express.static(path.join(__dirname, "public"), { maxAge: "5m" }));
 /** @type {Map<string, { userId: string; deviceId: string; connectedAt: number; lastSeen: number; userAgent?: string }>} */
 const presence = new Map();
 
+/**
+ * Mailbox for Shortcuts long-poll (no browser / no WebSocket required).
+ * @type {Map<string, { queue: object[], waiters: Array<{ resolve: Function, timer: NodeJS.Timeout, res: import('express').Response }> }>}
+ */
+const mailboxes = new Map();
+
 function roomOf(userId) {
   return `user:${String(userId).trim()}`;
+}
+
+function getMailbox(userId) {
+  let box = mailboxes.get(userId);
+  if (!box) {
+    box = { queue: [], waiters: [] };
+    mailboxes.set(userId, box);
+  }
+  return box;
+}
+
+/** Deliver to waiting Shortcuts pollers, or queue until next poll. */
+function enqueueForShortcuts(payload) {
+  const box = getMailbox(payload.userId);
+  if (box.waiters.length > 0) {
+    const waiter = box.waiters.shift();
+    clearTimeout(waiter.timer);
+    waiter.resolve(payload);
+    return;
+  }
+  box.queue.push(payload);
+  while (box.queue.length > 8) box.queue.shift();
 }
 
 function isAdminToken(token) {
@@ -120,13 +148,17 @@ function pushPlay(payload) {
   const room = roomOf(payload.userId);
   io.to(room).emit("play", payload);
   io.to(room).emit("command", payload);
+  enqueueForShortcuts(payload);
+  const receivers = receiverCount(payload.userId);
+  const waitingPolls = getMailbox(payload.userId).waiters.length;
   io.to("admin").emit("play_sent", {
     commandId: payload.commandId,
     userId: payload.userId,
-    receivers: receiverCount(payload.userId),
+    receivers,
+    shortcutWaiters: waitingPolls,
     ts: payload.ts,
   });
-  return receiverCount(payload.userId);
+  return receivers;
 }
 
 function pushStop(userId) {
@@ -138,6 +170,7 @@ function pushStop(userId) {
   };
   io.to(roomOf(userId)).emit("stop", payload);
   io.to(roomOf(userId)).emit("command", payload);
+  enqueueForShortcuts(payload);
   return payload;
 }
 
@@ -156,6 +189,53 @@ app.get("/api/online", (req, res) => {
     return res.status(401).json({ error: "admin token required" });
   }
   res.json({ items: listOnline() });
+});
+
+/**
+ * GET /api/poll — Shortcuts long-poll (推荐，无需开浏览器)
+ * Query: userId, token (RECEIVER_TOKEN), wait=25 (seconds, max 55)
+ * Returns immediately when admin pushes play/stop; otherwise { pending:false } after wait.
+ */
+app.get("/api/poll", (req, res) => {
+  const token = String(req.query.token || req.header("x-auth-token") || "");
+  if (!isReceiverToken(token) && !isAdminToken(token)) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+  const userId = String(req.query.userId || "").trim();
+  if (!userId || userId.length > 64) {
+    return res.status(400).json({ error: "userId required" });
+  }
+
+  const waitSec = Math.min(55, Math.max(1, Number(req.query.wait || 25)));
+  const box = getMailbox(userId);
+
+  if (box.queue.length > 0) {
+    const payload = box.queue.shift();
+    return res.json({ ok: true, pending: true, ...payload });
+  }
+
+  const timer = setTimeout(() => {
+    box.waiters = box.waiters.filter((w) => w.res !== res);
+    if (!res.headersSent) {
+      res.json({ ok: true, pending: false, type: "idle" });
+    }
+  }, waitSec * 1000);
+
+  const waiter = {
+    res,
+    timer,
+    resolve: (payload) => {
+      if (!res.headersSent) {
+        res.json({ ok: true, pending: true, ...payload });
+      }
+    },
+  };
+  box.waiters.push(waiter);
+
+  req.on("close", () => {
+    clearTimeout(timer);
+    box.waiters = box.waiters.filter((w) => w.res !== res);
+  });
 });
 
 /** Admin HTTP play — REST fallback; Socket.io play is faster. */

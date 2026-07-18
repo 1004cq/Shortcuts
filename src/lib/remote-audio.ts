@@ -13,7 +13,7 @@ export function getRemoteAudioReceiverToken(): string {
   return process.env.REMOTE_AUDIO_RECEIVER_TOKEN || process.env.REMOTE_AUDIO_TOKEN || "";
 }
 
-/** iPhone Shortcuts entry — hosted under /admin/rx (public, no login) */
+/** Browser receiver (optional) — /admin/rx */
 export function buildReceiverUrl(userId: string): string {
   const app = getAppUrl().replace(/\/$/, "");
   const token = getRemoteAudioReceiverToken();
@@ -23,6 +23,17 @@ export function buildReceiverUrl(userId: string): string {
     autostart: "1",
   });
   return `${app}/admin/rx?${q.toString()}`;
+}
+
+/** Shortcuts long-poll URL — no Safari/WebSocket needed */
+export function buildPollUrl(userId: string, waitSec = 25): string {
+  const token = getRemoteAudioReceiverToken();
+  const q = new URLSearchParams({
+    userId,
+    token,
+    wait: String(waitSec),
+  });
+  return `${getRemoteAudioBase()}/api/poll?${q.toString()}`;
 }
 
 export async function remoteAudioFetch(

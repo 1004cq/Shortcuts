@@ -62,8 +62,9 @@ export default function AdminRemotePlayPage() {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState("");
   const [err, setErr] = React.useState("");
+  const [pollUrl, setPollUrl] = React.useState("");
   const [receiverUrl, setReceiverUrl] = React.useState("");
-  const [copied, setCopied] = React.useState(false);
+  const [copied, setCopied] = React.useState<"poll" | "rx" | "">("");
 
   const targetUserId = (customUserId.trim() || userId).trim();
 
@@ -147,10 +148,7 @@ export default function AdminRemotePlayPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "推送失败");
-      setMsg(
-        `已推送 · 在线 ${data.receivers ?? 0} 台 · ${data.commandId || ""}` +
-          (data.receivers === 0 ? "（对方未在线，请先让其运行接收快捷指令）" : "")
-      );
+      setMsg(`已推送 commandId=${data.commandId || "—"}（快捷指令轮询中的手机会很快收到）`);
       void loadBootstrap();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "推送失败");
@@ -194,8 +192,9 @@ export default function AdminRemotePlayPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "生成失败");
+      setPollUrl(data.pollUrl || "");
       setReceiverUrl(data.receiverUrl || "");
-      setMsg("已生成该用户的 iPhone 接收链接 / 快捷指令 URL");
+      setMsg("已生成快捷指令轮询地址（推荐，不用开浏览器）");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "生成失败");
     } finally {
@@ -203,11 +202,13 @@ export default function AdminRemotePlayPage() {
     }
   };
 
-  const copyLink = async () => {
-    if (!receiverUrl) return;
-    const ok = await copyToClipboard(receiverUrl);
-    setCopied(ok);
-    setTimeout(() => setCopied(false), 1500);
+  const copyText = async (text: string, kind: "poll" | "rx") => {
+    if (!text) return;
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopied(kind);
+      setTimeout(() => setCopied(""), 1500);
+    }
   };
 
   const pickOnline = (id: string) => {
@@ -259,7 +260,7 @@ export default function AdminRemotePlayPage() {
                 <p className="text-sm text-amber-300">{serviceError}</p>
               ) : online.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  暂无在线接收端。请让用户运行接收快捷指令并保持前台。
+                  暂无网页在线端。用户用「快捷指令轮询」时这里可能为空，不影响播放。
                 </p>
               ) : (
                 <ul className="space-y-2">
@@ -391,7 +392,7 @@ export default function AdminRemotePlayPage() {
                 </Button>
                 <Button type="button" variant="ghost" onClick={genLink} disabled={busy || !targetUserId}>
                   <Smartphone className="h-4 w-4" />
-                  生成接收链接
+                  生成快捷指令配置
                 </Button>
               </div>
 
@@ -401,33 +402,78 @@ export default function AdminRemotePlayPage() {
           </div>
         )}
 
-        {receiverUrl && (
-          <GlassCard glow="violet" className="p-5">
-            <p className="font-display font-semibold">该用户的快捷指令 URL</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              快捷指令 → 打开 URL → 粘贴下方链接。用户打开后点「启动监听」即可保持连接。
-            </p>
-            <code className="mt-3 block break-all rounded-xl border border-white/10 bg-black/30 p-3 text-xs">
-              {receiverUrl}
+        {pollUrl && (
+          <GlassCard glow="violet" className="space-y-4 p-5">
+            <div>
+              <p className="font-display font-semibold">快捷指令轮询地址（推荐 · 不用开浏览器）</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                用「获取 URL 内容」循环请求此地址；管理员一点播放，捷径会拿到 audioUrl 并「播放声音」。
+              </p>
+            </div>
+            <code className="block break-all rounded-xl border border-white/10 bg-black/30 p-3 text-xs">
+              {pollUrl}
             </code>
-            <Button type="button" size="sm" className="mt-3" variant="secondary" onClick={copyLink}>
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "已复制" : "复制链接"}
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => copyText(pollUrl, "poll")}
+            >
+              {copied === "poll" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied === "poll" ? "已复制" : "复制轮询 URL"}
             </Button>
+
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">iPhone 快捷指令配置（逐步）</p>
+              <ol className="mt-2 list-decimal space-y-1.5 pl-5">
+                <li>打开「快捷指令」→ 新建</li>
+                <li>添加「<span className="text-foreground">重复</span>」→ 次数填 <span className="text-foreground">9999</span></li>
+                <li>在重复内添加「<span className="text-foreground">获取 URL 内容</span>」</li>
+                <li>URL 粘贴上方轮询地址；方法 GET</li>
+                <li>添加「<span className="text-foreground">获取词典</span>」← 获取 URL 内容</li>
+                <li>添加「<span className="text-foreground">如果</span>」：词典的 <code className="text-foreground">pending</code> 为 <span className="text-foreground">真</span></li>
+                <li>如果内：「获取词典值」键名 <code className="text-foreground">audioUrl</code></li>
+                <li>「获取 URL 内容」← audioUrl（下载音频文件）</li>
+                <li>「播放声音」← 上一步的文件</li>
+                <li>保存；需要接听时运行此捷径（捷径保持运行即可，不必开 Safari）</li>
+              </ol>
+              <p className="mt-3 text-xs text-amber-200/90">
+                说明：iOS 不允许捷径在锁屏后无限后台跑。屏幕亮着、捷径在跑时延迟最低；锁屏后需再点一次运行。
+              </p>
+            </div>
+
+            {receiverUrl && (
+              <details className="text-sm">
+                <summary className="cursor-pointer text-muted-foreground">
+                  备用：网页接收端（需开浏览器）
+                </summary>
+                <code className="mt-2 block break-all rounded-xl border border-white/10 bg-black/30 p-3 text-xs">
+                  {receiverUrl}
+                </code>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="mt-2"
+                  variant="ghost"
+                  onClick={() => copyText(receiverUrl, "rx")}
+                >
+                  {copied === "rx" ? "已复制" : "复制网页链接"}
+                </Button>
+              </details>
+            )}
           </GlassCard>
         )}
 
         <GlassCard className="p-5 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">使用说明（已集中到本后台）</p>
+          <p className="font-medium text-foreground">推荐用法</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>本页生成链接（形如 https://cq.imim.chat/admin/rx?...）</li>
-            <li>对方用快捷指令打开 /admin/rx，点启动监听并保持在线</li>
-            <li>管理员在本页选用户 + 音频 → 立即播放</li>
-            <li>控制与接收入口都在 /admin，无需单独控制台</li>
+            <li>后台生成「快捷指令配置」→ 复制轮询 URL</li>
+            <li>用户按上面步骤做捷径并运行（无需 Safari）</li>
+            <li>管理员选音频 → 立即播放</li>
           </ol>
           {online[0]?.devices?.[0]?.lastSeen ? (
             <p className="mt-3 text-xs">
-              最近活跃：
+              网页在线（可选）：
               {format(new Date(online[0].devices[0].lastSeen), "HH:mm:ss")}
             </p>
           ) : null}

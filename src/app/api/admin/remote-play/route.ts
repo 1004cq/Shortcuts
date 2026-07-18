@@ -6,6 +6,7 @@ import { FileModel } from "@/models/File";
 import { ApiError, jsonOk, requireAdmin, withApiHandler } from "@/lib/api";
 import { generateShareToken, getAppUrl } from "@/lib/utils";
 import {
+  buildPollUrl,
   buildReceiverUrl,
   getRemoteAudioAdminToken,
   getRemoteAudioBase,
@@ -50,8 +51,8 @@ export const GET = withApiHandler(async () => {
     online,
     publicUrl: getRemoteAudioBase(),
     receiverTokenConfigured: Boolean(getRemoteAudioReceiverToken()),
-    // Example only — real links built per userId on the client via /link
     receiverUrlExample: buildReceiverUrl("{userId}"),
+    pollUrlExample: buildPollUrl("{userId}"),
   });
 });
 
@@ -88,8 +89,12 @@ export const POST = withApiHandler(async (req: Request) => {
     }
     return jsonOk({
       userId,
+      /** 推荐：快捷指令原生轮询，无需开浏览器 */
+      pollUrl: buildPollUrl(userId, 25),
+      /** 可选：网页 WebSocket 接收端 */
       receiverUrl: buildReceiverUrl(userId),
-      shortcutHint: "快捷指令 → 打开 URL → 粘贴 receiverUrl",
+      shortcutHint:
+        "快捷指令：重复 → 获取 URL 内容(pollUrl) → 若有 audioUrl 则下载并播放声音",
     });
   }
 
