@@ -59,7 +59,7 @@ export default function RegisterPage() {
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">昵称</Label>
-              <Input id="name" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} />
+              <Input id="name" required minLength={1} value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">邮箱</Label>

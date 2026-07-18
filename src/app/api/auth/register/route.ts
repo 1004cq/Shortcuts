@@ -9,8 +9,8 @@ import { sendVerificationEmail } from "@/lib/email";
 import { jsonError, jsonOk, withApiHandler } from "@/lib/api";
 
 const registerSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  email: z.string().email().max(254),
+  name: z.string().trim().min(1, "请填写昵称").max(80),
+  email: z.string().email("请填写有效邮箱").max(254),
   password: z
     .string()
     .min(8, "密码至少 8 位")

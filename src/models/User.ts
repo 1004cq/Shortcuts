@@ -32,23 +32,20 @@ const UserSchema = new Schema(
      */
     username: {
       type: String,
-      default: null,
+      // omit when unset — sparse unique indexes reject multiple nulls
       unique: true,
       sparse: true,
       trim: true,
       lowercase: true,
       maxlength: 24,
-      index: true,
     },
     /** Bound China mobile number. Unique when set. */
     phone: {
       type: String,
-      default: null,
       unique: true,
       sparse: true,
       trim: true,
       maxlength: 11,
-      index: true,
     },
     role: {
       type: String,
@@ -102,10 +99,8 @@ const UserSchema = new Schema(
      */
     apiToken: {
       type: String,
-      default: null,
       unique: true,
       sparse: true,
-      index: true,
       select: false,
     },
   },
