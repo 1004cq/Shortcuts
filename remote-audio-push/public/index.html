@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Remote Audio · 控制台</title>
+    <title>管理员后台 · 远程音频</title>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <style>
       :root {
@@ -13,7 +13,6 @@
         --line: rgba(255, 255, 255, 0.12);
         --text: #e8eefc;
         --muted: #94a3b8;
-        --accent: #38bdf8;
         --ok: #34d399;
         --danger: #f87171;
       }
@@ -21,134 +20,146 @@
       body {
         margin: 0;
         min-height: 100dvh;
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
         color: var(--text);
         background:
           radial-gradient(ellipse 80% 50% at 20% -10%, rgba(56, 189, 248, 0.22), transparent 55%),
-          radial-gradient(ellipse 60% 40% at 90% 10%, rgba(167, 139, 250, 0.18), transparent 50%),
+          radial-gradient(ellipse 60% 40% at 90% 10%, rgba(248, 113, 113, 0.12), transparent 50%),
           var(--bg);
         padding: 24px;
       }
-      .wrap { max-width: 720px; margin: 0 auto; }
-      h1 { font-size: 1.5rem; margin: 0 0 6px; letter-spacing: -0.02em; }
-      .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+      .wrap { max-width: 640px; margin: 0 auto; }
+      h1 { font-size: 1.45rem; margin: 0 0 6px; }
+      .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 18px; line-height: 1.45; }
       .card {
         background: var(--card);
         border: 1px solid var(--line);
         border-radius: 18px;
         padding: 18px;
         backdrop-filter: blur(18px);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
         margin-bottom: 14px;
       }
       label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
-      input, select {
+      input {
         width: 100%;
         border-radius: 12px;
         border: 1px solid var(--line);
-        background: rgba(0,0,0,0.35);
+        background: rgba(0, 0, 0, 0.35);
         color: var(--text);
         padding: 12px 14px;
         margin-bottom: 12px;
         outline: none;
       }
-      input:focus { border-color: rgba(56,189,248,0.7); }
+      input:focus { border-color: rgba(56, 189, 248, 0.7); }
       .row { display: flex; gap: 10px; flex-wrap: wrap; }
       button {
         border: 0;
         border-radius: 12px;
         padding: 12px 16px;
-        font-weight: 650;
+        font-weight: 700;
         cursor: pointer;
         background: linear-gradient(135deg, #38bdf8, #818cf8);
         color: #041018;
       }
       button.secondary {
-        background: rgba(255,255,255,0.08);
+        background: rgba(255, 255, 255, 0.08);
         color: var(--text);
         border: 1px solid var(--line);
       }
-      button.danger { background: linear-gradient(135deg, #f87171, #fb7185); color: #1f0508; }
-      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      button.danger {
+        background: linear-gradient(135deg, #f87171, #fb7185);
+        color: #1f0508;
+      }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
       .status {
-        display: inline-flex; align-items: center; gap: 8px;
-        font-size: 0.85rem; color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: var(--muted);
       }
       .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
-      .dot.on { background: var(--ok); box-shadow: 0 0 0 4px rgba(52,211,153,0.15); }
+      .dot.on { background: var(--ok); box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.15); }
       .log {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 12px;
-        max-height: 220px;
+        max-height: 200px;
         overflow: auto;
         white-space: pre-wrap;
         color: #cbd5e1;
       }
-      a { color: var(--accent); }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(248, 113, 113, 0.35);
+        color: #fecaca;
+        background: rgba(248, 113, 113, 0.12);
+        margin-bottom: 10px;
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <h1>远程音频控制台</h1>
+      <div class="badge">ADMIN ONLY · 仅管理员可发送播放指令</div>
+      <h1>远程音频 · 管理员后台</h1>
       <p class="sub">
-        点击播放后，在线 iPhone 接收端将在约 1–3 秒内自动播指定音频。
-        接收页：<a id="receiverLink" href="./receiver.html">receiver.html</a>
+        输入目标用户 ID 与音频 HTTPS 地址，点击播放即可推送到对方 iPhone（需对方已运行接收快捷指令并保持连接）。
       </p>
 
       <div class="card">
         <div class="status"><span class="dot" id="dot"></span><span id="connText">未连接</span></div>
-        <label style="margin-top:14px">AUTH_TOKEN</label>
-        <input id="token" type="password" placeholder="与服务器 AUTH_TOKEN 一致" />
-        <label>目标 userId（与 iPhone 接收端一致）</label>
-        <input id="userId" placeholder="例如 user_b / 手机号 / MediaVault 用户名" />
+        <label style="margin-top: 14px">管理员 Token（ADMIN_TOKEN）</label>
+        <input id="token" type="password" placeholder="服务器 ADMIN_TOKEN / AUTH_TOKEN" autocomplete="off" />
         <div class="row">
-          <button class="secondary" id="btnConnect" type="button">连接 WebSocket</button>
-          <button class="secondary" id="btnRefresh" type="button">刷新在线</button>
+          <button class="secondary" id="btnConnect" type="button">连接控制通道</button>
+          <button class="secondary" id="btnRefresh" type="button">刷新在线用户</button>
         </div>
       </div>
 
       <div class="card">
-        <label>音频 URL（需 iPhone 可直接访问的 https）</label>
-        <input id="audioUrl" placeholder="https://cq.imim.chat/api/files/.../stream?token=..." />
+        <label>目标用户 ID</label>
+        <input id="userId" placeholder="例如 iphone_zhangsan（与接收端一致）" />
+        <label>音频 URL（HTTPS，iPhone 可直接访问）</label>
+        <input id="audioUrl" placeholder="https://example.com/a.mp3" />
         <label>标题（可选）</label>
-        <input id="title" placeholder="歌曲名" value="Remote Track" />
+        <input id="title" value="管理员推送" />
         <div class="row">
-          <button id="btnPlay" type="button" disabled>▶ 播放到 iPhone</button>
+          <button id="btnPlay" type="button" disabled>▶ 立即播放到该用户</button>
           <button class="danger" id="btnStop" type="button" disabled>■ 停止</button>
         </div>
       </div>
 
       <div class="card">
-        <label>在线接收端</label>
-        <div id="online" class="log">尚未获取</div>
+        <label>在线 iPhone 接收端</label>
+        <div id="online" class="log">连接后显示</div>
       </div>
 
       <div class="card">
-        <label>事件日志</label>
+        <label>延迟 / 事件日志</label>
         <div id="log" class="log"></div>
       </div>
     </div>
 
     <script>
       const $ = (id) => document.getElementById(id);
-      const logEl = $("log");
       let socket = null;
 
       function log(msg) {
-        const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        logEl.textContent = `${line}\n` + logEl.textContent;
+        $("log").textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + $("log").textContent;
       }
 
       function setConnected(on) {
         $("dot").classList.toggle("on", on);
-        $("connText").textContent = on ? "WebSocket 已连接" : "未连接";
+        $("connText").textContent = on ? "管理员通道已连接（WebSocket）" : "未连接";
         $("btnPlay").disabled = !on;
         $("btnStop").disabled = !on;
       }
 
       function save() {
         localStorage.setItem(
-          "rap_ctrl",
+          "rap_admin",
           JSON.stringify({
             token: $("token").value,
             userId: $("userId").value,
@@ -160,12 +171,16 @@
 
       function load() {
         try {
-          const raw = JSON.parse(localStorage.getItem("rap_ctrl") || "{}");
+          const raw = JSON.parse(localStorage.getItem("rap_admin") || "{}");
           if (raw.token) $("token").value = raw.token;
           if (raw.userId) $("userId").value = raw.userId;
           if (raw.audioUrl) $("audioUrl").value = raw.audioUrl;
           if (raw.title) $("title").value = raw.title;
         } catch {}
+      }
+
+      function socketPath() {
+        return location.pathname.includes("/realtime") ? "/realtime/socket.io" : "/socket.io";
       }
 
       async function refreshOnline() {
@@ -179,13 +194,13 @@
             ? data.items
                 .map(
                   (u) =>
-                    `${u.userId} · ${u.deviceCount} device(s)\n` +
+                    `${u.userId} · ${u.deviceCount} 台在线\n` +
                     u.devices
                       .map((d) => `  - ${d.deviceId} · ${new Date(d.lastSeen).toLocaleTimeString()}`)
                       .join("\n")
                 )
                 .join("\n\n")
-            : "当前无在线接收端";
+            : "当前无在线接收端（请先让用户运行快捷指令）";
         } catch (e) {
           $("online").textContent = String(e.message || e);
         }
@@ -193,74 +208,90 @@
 
       function connect() {
         const token = $("token").value.trim();
-        const userId = $("userId").value.trim();
-        if (!token || !userId) {
-          alert("请填写 AUTH_TOKEN 与 userId");
+        if (!token) {
+          alert("请填写管理员 Token");
           return;
         }
         save();
         if (socket) socket.disconnect();
 
-        // Behind nginx: page is /realtime/ → socket path /realtime/socket.io
-        const path = location.pathname.includes("/realtime")
-          ? "/realtime/socket.io"
-          : "/socket.io";
-
         socket = io({
-          path,
-          auth: { token, deviceId: "web-console", role: "controller" },
+          path: socketPath(),
+          auth: { token, deviceId: "admin-console", role: "admin" },
           transports: ["websocket"],
           upgrade: false,
           reconnection: true,
-          reconnectionDelay: 500,
-          reconnectionDelayMax: 3000,
+          reconnectionDelay: 400,
+          reconnectionDelayMax: 2500,
         });
 
         socket.on("connect", () => {
           setConnected(true);
-          log(`connected ${socket.id}`);
-          socket.emit("join", { userId, role: "controller" }, (ack) => {
-            log(`join ack ${JSON.stringify(ack)}`);
+          log("connected " + socket.id);
+          socket.emit("join", { role: "admin" }, (ack) => {
+            log("admin join " + JSON.stringify(ack));
+            if (ack?.online) {
+              $("online").textContent = (ack.online || [])
+                .map((u) => `${u.userId} · ${u.deviceCount} 台`)
+                .join("\n") || "当前无在线接收端";
+            } else {
+              refreshOnline();
+            }
           });
-          refreshOnline();
         });
-        socket.on("disconnect", (reason) => {
+        socket.on("disconnect", (r) => {
           setConnected(false);
-          log(`disconnect ${reason}`);
+          log("disconnect " + r);
         });
         socket.on("connect_error", (err) => {
           setConnected(false);
-          log(`connect_error ${err.message}`);
+          log("connect_error " + err.message + "（检查是否为 ADMIN_TOKEN）");
         });
         socket.on("presence", (p) => {
           $("online").textContent = (p.items || [])
-            .map((u) => `${u.userId} · ${u.deviceCount} device(s)`)
+            .map((u) => `${u.userId} · ${u.deviceCount} 台在线`)
             .join("\n") || "当前无在线接收端";
         });
-        socket.on("play", (payload) => log(`play echo ${payload.commandId}`));
+        socket.on("play_sent", (p) => {
+          log(`play_sent user=${p.userId} receivers=${p.receivers} id=${p.commandId}`);
+        });
       }
 
       $("btnConnect").onclick = connect;
       $("btnRefresh").onclick = refreshOnline;
+
       $("btnPlay").onclick = () => {
         if (!socket?.connected) return;
+        const userId = $("userId").value.trim();
+        const audioUrl = $("audioUrl").value.trim();
+        if (!userId || !audioUrl) {
+          alert("请填写目标用户 ID 与音频 URL");
+          return;
+        }
         save();
-        const payload = {
-          userId: $("userId").value.trim(),
-          audioUrl: $("audioUrl").value.trim(),
-          title: $("title").value.trim() || "Remote Track",
-        };
         const t0 = performance.now();
-        socket.emit("play", payload, (ack) => {
-          const ms = Math.round(performance.now() - t0);
-          log(`play ack ${ms}ms ${JSON.stringify(ack)}`);
-        });
+        socket.emit(
+          "play",
+          {
+            userId,
+            audioUrl,
+            title: $("title").value.trim() || "管理员推送",
+          },
+          (ack) => {
+            const ms = Math.round(performance.now() - t0);
+            log(`play RTT ${ms}ms · ${JSON.stringify(ack)}`);
+            if (ack && ack.receivers === 0) {
+              log("警告：该用户当前无在线接收端");
+            }
+          }
+        );
       };
+
       $("btnStop").onclick = () => {
         if (!socket?.connected) return;
-        socket.emit("stop", { userId: $("userId").value.trim() }, (ack) => {
-          log(`stop ack ${JSON.stringify(ack)}`);
-        });
+        const userId = $("userId").value.trim();
+        if (!userId) return alert("请填写目标用户 ID");
+        socket.emit("stop", { userId }, (ack) => log("stop " + JSON.stringify(ack)));
       };
 
       load();
