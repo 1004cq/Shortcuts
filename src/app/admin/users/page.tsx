@@ -46,6 +46,8 @@ type EditForm = {
   membership: "free" | "monthly" | "yearly";
   membershipExpiresAt: string;
   emailVerified: boolean;
+  password: string;
+  passwordConfirm: string;
 };
 
 function toLocalInputValue(iso?: string | null): string {
@@ -105,6 +107,8 @@ export default function AdminUsersPage() {
       membership: (u.membership as EditForm["membership"]) || "free",
       membershipExpiresAt: toLocalInputValue(u.membershipExpiresAt),
       emailVerified: Boolean(u.emailVerified),
+      password: "",
+      passwordConfirm: "",
     });
   };
 
@@ -158,6 +162,17 @@ export default function AdminUsersPage() {
   const saveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing || !form) return;
+    const newPassword = form.password.trim();
+    if (newPassword || form.passwordConfirm.trim()) {
+      if (newPassword !== form.passwordConfirm.trim()) {
+        setEditError("两次输入的密码不一致");
+        return;
+      }
+      if (newPassword.length < 8) {
+        setEditError("密码至少 8 位");
+        return;
+      }
+    }
     setSaving(true);
     setEditError("");
     try {
@@ -174,6 +189,7 @@ export default function AdminUsersPage() {
           membership: form.membership,
           membershipExpiresAt: fromLocalInputValue(form.membershipExpiresAt),
           emailVerified: form.emailVerified,
+          ...(newPassword ? { password: newPassword } : {}),
         }),
       });
       const data = await res.json();
@@ -302,7 +318,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>编辑用户</DialogTitle>
             <DialogDescription className="text-slate-400">
-              可修改资料、角色与会员状态。系统 ID：{editing?._id}
+              可修改资料、角色、会员状态与密码。系统 ID：{editing?._id}
             </DialogDescription>
           </DialogHeader>
           {form && (
@@ -406,6 +422,35 @@ export default function AdminUsersPage() {
                   />
                   邮箱已验证
                 </label>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-password">新密码（可选）</Label>
+                  <Input
+                    id="edit-password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    className="border-slate-700 bg-slate-900"
+                    placeholder="留空则不修改密码"
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-password-confirm">确认新密码</Label>
+                  <Input
+                    id="edit-password-confirm"
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.passwordConfirm}
+                    onChange={(e) =>
+                      setForm({ ...form, passwordConfirm: e.target.value })
+                    }
+                    className="border-slate-700 bg-slate-900"
+                    placeholder="再次输入新密码"
+                  />
+                  <p className="text-xs text-slate-500">
+                    至少 8 位，需包含字母和数字。可用于修改管理员或任意用户密码。
+                  </p>
+                </div>
               </div>
               {editError && <p className="text-sm text-red-400">{editError}</p>}
               <div className="flex flex-wrap items-center justify-between gap-2">

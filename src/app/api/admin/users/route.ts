@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
@@ -19,6 +20,13 @@ import {
   phoneSchema,
   usernameSchema,
 } from "@/lib/user-profile";
+
+const passwordSchema = z
+  .string()
+  .min(8, "密码至少 8 位")
+  .max(128)
+  .regex(/[A-Za-z]/, "密码需包含字母")
+  .regex(/[0-9]/, "密码需包含数字");
 
 export const GET = withApiHandler(async (req: Request) => {
   await requireAdmin();
@@ -65,6 +73,8 @@ const patchSchema = z.object({
   membership: z.enum(["free", "monthly", "yearly"]).optional(),
   membershipExpiresAt: z.string().datetime().nullable().optional(),
   emailVerified: z.boolean().optional(),
+  /** Admin-set new password; omit or empty to leave unchanged */
+  password: passwordSchema.optional(),
 });
 
 export const PATCH = withApiHandler(async (req: Request) => {
@@ -147,6 +157,12 @@ export const PATCH = withApiHandler(async (req: Request) => {
   }
   if (parsed.data.emailVerified !== undefined) {
     user.emailVerified = parsed.data.emailVerified;
+  }
+
+  if (parsed.data.password !== undefined) {
+    user.password = await bcrypt.hash(parsed.data.password, 12);
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
   }
 
   // Keep role/membership consistent for common admin shortcuts
