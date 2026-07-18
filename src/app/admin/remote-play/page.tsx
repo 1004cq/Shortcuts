@@ -227,7 +227,7 @@ export default function AdminRemotePlayPage() {
               远程音频控制
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              在后台选择用户与音频，一键推送到对方 iPhone（Socket.io 实时通道已内置）。
+              全部集成在 /admin：本页控制推送，接收端为 /admin/rx（用户免登录）。
             </p>
           </div>
           <Button type="button" variant="secondary" size="sm" onClick={() => loadBootstrap()}>
@@ -420,10 +420,10 @@ export default function AdminRemotePlayPage() {
         <GlassCard className="p-5 text-sm text-muted-foreground">
           <p className="font-medium text-foreground">使用说明（已集中到本后台）</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>在本页生成用户接收链接，发给对方做成快捷指令</li>
-            <li>对方运行捷径并保持接收页前台「在线」</li>
-            <li>管理员在本页选择用户 + 音频，点「立即播放」</li>
-            <li>无需再打开单独的 /realtime/ 控制台</li>
+            <li>本页生成链接（形如 https://cq.imim.chat/admin/rx?...）</li>
+            <li>对方用快捷指令打开 /admin/rx，点启动监听并保持在线</li>
+            <li>管理员在本页选用户 + 音频 → 立即播放</li>
+            <li>控制与接收入口都在 /admin，无需单独控制台</li>
           </ol>
           {online[0]?.devices?.[0]?.lastSeen ? (
             <p className="mt-3 text-xs">

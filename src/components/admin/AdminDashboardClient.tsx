@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
+import Link from "next/link";
 import {
   Activity,
   Crown,
@@ -23,6 +24,7 @@ import { useAdminDashboardStore } from "@/store/admin-dashboard";
 import { formatBytes } from "@/lib/utils";
 import type { AdminStatsPayload } from "@/lib/admin-stats";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export function AdminDashboardClient() {
   const { data, loading, error, live, lastUpdated, setData, setError, setLoading, setLive } =
@@ -173,6 +175,21 @@ export function AdminDashboardClient() {
           <KpiCard key={kpi.label} {...kpi} />
         ))}
       </div>
+
+      <GlassCard glow="amber" className="flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <p className="font-display text-lg font-semibold">远程音频</p>
+          <p className="text-xs text-muted-foreground">
+            控制台 /admin/remote-play · 接收端 /admin/rx
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/admin/remote-play">
+            <Radio className="h-4 w-4" />
+            打开远程音频
+          </Link>
+        </Button>
+      </GlassCard>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <GlassCard glow="cyan" className="p-5 xl:col-span-2">

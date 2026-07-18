@@ -11,8 +11,10 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   const isAdminLogin = pathname === "/admin/login";
+  /** Public iPhone receiver page nested under /admin (no login) */
+  const isAdminReceiver = pathname === "/admin/rx";
   const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
-  const isAdminProtected = isAdminArea && !isAdminLogin;
+  const isAdminProtected = isAdminArea && !isAdminLogin && !isAdminReceiver;
 
   const isAuthPage =
     pathname.startsWith("/login") ||

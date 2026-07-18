@@ -13,15 +13,16 @@ export function getRemoteAudioReceiverToken(): string {
   return process.env.REMOTE_AUDIO_RECEIVER_TOKEN || process.env.REMOTE_AUDIO_TOKEN || "";
 }
 
+/** iPhone Shortcuts entry — hosted under /admin/rx (public, no login) */
 export function buildReceiverUrl(userId: string): string {
-  const base = getRemoteAudioBase();
+  const app = getAppUrl().replace(/\/$/, "");
   const token = getRemoteAudioReceiverToken();
   const q = new URLSearchParams({
     userId,
     token,
     autostart: "1",
   });
-  return `${base}/receiver.html?${q.toString()}`;
+  return `${app}/admin/rx?${q.toString()}`;
 }
 
 export async function remoteAudioFetch(
