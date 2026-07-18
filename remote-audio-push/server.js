@@ -193,24 +193,36 @@ app.get("/api/online", (req, res) => {
 
 /**
  * Respond in Shortcuts-friendly formats (no Dictionary actions needed).
- * format=url  → text/plain: audioUrl | STOP | (empty idle)
- * format=json → JSON (default)
+ * format=file → 有播放时 302 跳到音频（捷径最省事：获取一次即可播放）
+ * format=url  → text/plain: audioUrl | (empty idle)
+ * format=json → JSON
  */
 function sendPollResult(res, payload, format) {
   const fmt = String(format || "json").toLowerCase();
+
+  if (fmt === "file" || fmt === "redirect") {
+    if (!payload || payload.type === "idle" || payload.pending === false || payload.type === "stop") {
+      res.status(204).end();
+      return;
+    }
+    const audioUrl = String(payload.audioUrl || "");
+    if (!audioUrl) {
+      res.status(204).end();
+      return;
+    }
+    res.redirect(302, audioUrl);
+    return;
+  }
+
   if (fmt === "url" || fmt === "text" || fmt === "plain") {
-    if (!payload || payload.type === "idle" || payload.pending === false) {
+    if (!payload || payload.type === "idle" || payload.pending === false || payload.type === "stop") {
       res.status(200).type("text/plain").send("");
       return;
     }
-    if (payload.type === "stop") {
-      res.status(200).type("text/plain").send("STOP");
-      return;
-    }
-    // play
     res.status(200).type("text/plain").send(String(payload.audioUrl || ""));
     return;
   }
+
   if (!payload || payload.type === "idle") {
     res.json({ ok: true, pending: false, type: "idle" });
     return;
@@ -233,7 +245,8 @@ app.get("/api/poll", (req, res) => {
     return res.status(400).json({ error: "userId required" });
   }
 
-  const format = String(req.query.format || "url");
+  // Default file: Shortcuts can Get Contents once then Play Sound
+  const format = String(req.query.format || "file");
   const waitSec = Math.min(55, Math.max(1, Number(req.query.wait || 25)));
   const box = getMailbox(userId);
 

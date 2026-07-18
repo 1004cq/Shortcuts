@@ -407,7 +407,7 @@ export default function AdminRemotePlayPage() {
             <div>
               <p className="font-display font-semibold">快捷指令轮询地址（推荐 · 不用开浏览器）</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                用「获取 URL 内容」循环请求此地址；管理员一点播放，捷径会拿到 audioUrl 并「播放声音」。
+                有推送时接口会直接返回音频文件（format=file）。捷径只需获取一次再播放，不要用「获取词典」。
               </p>
             </div>
             <code className="block break-all rounded-xl border border-white/10 bg-black/30 p-3 text-xs">
@@ -424,24 +424,25 @@ export default function AdminRemotePlayPage() {
             </Button>
 
             <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">iPhone 快捷指令（不用「获取词典」）</p>
+              <p className="font-medium text-foreground">iPhone 快捷指令（最简 · 3 个动作）</p>
               <ol className="mt-2 list-decimal space-y-1.5 pl-5">
-                <li>打开「快捷指令」→ 新建</li>
-                <li>添加「<span className="text-foreground">重复</span>」→ 次数 <span className="text-foreground">9999</span></li>
-                <li>重复内：「<span className="text-foreground">获取 URL 内容</span>」→ 粘贴上方轮询地址</li>
+                <li>删掉旧捷径，重新新建（旧的 format=url 会失败）</li>
+                <li>添加「<span className="text-foreground">重复</span>」→ 次数 <span className="text-foreground">999</span></li>
                 <li>
-                  添加「<span className="text-foreground">如果</span>」：获取 URL 内容{" "}
+                  重复内只加一个「<span className="text-foreground">获取 URL 内容</span>」→ 粘贴上方地址（须含{" "}
+                  <span className="text-foreground">format=file</span>）
+                </li>
+                <li>
+                  「<span className="text-foreground">如果</span>」：「URL 的内容」{" "}
                   <span className="text-foreground">有任何值</span>
                 </li>
                 <li>
-                  如果里面：再加「<span className="text-foreground">获取 URL 内容</span>」→ URL
-                  选上一步的文本（音频地址）
+                  如果里面只加「<span className="text-foreground">播放声音</span>」→ 声音文件选「URL 的内容」
                 </li>
-                <li>「<span className="text-foreground">播放声音</span>」← 第二个获取 URL 内容</li>
-                <li>保存并运行（不用开浏览器、不用词典）</li>
+                <li>运行，保持屏幕亮着</li>
               </ol>
               <p className="mt-3 text-xs text-amber-200/90">
-                接口直接返回纯文本音频链接；空内容=暂时没播。锁屏后捷径可能暂停，再点运行即可。
+                不要「获取词典」，也不要第二个「获取 URL 内容」。空响应=暂时没播。锁屏后可能暂停。
               </p>
             </div>
 
