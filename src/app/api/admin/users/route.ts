@@ -71,7 +71,7 @@ const patchSchema = z.object({
   username: usernameSchema.optional().nullable(),
   phone: phoneSchema.optional().nullable(),
   role: z.enum(["user", "vip"]).optional(),
-  membership: z.enum(["free", "monthly", "yearly"]).optional(),
+  membership: z.enum(["free", "monthly", "quarterly", "yearly"]).optional(),
   membershipExpiresAt: z.string().datetime().nullable().optional(),
   emailVerified: z.boolean().optional(),
   /** Admin-set new password for members; omit or empty to leave unchanged */

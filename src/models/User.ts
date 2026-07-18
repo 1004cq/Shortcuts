@@ -54,7 +54,7 @@ const UserSchema = new Schema(
     },
     membership: {
       type: String,
-      enum: ["free", "monthly", "yearly"] satisfies MembershipPlan[],
+      enum: ["free", "monthly", "quarterly", "yearly"] satisfies MembershipPlan[],
       default: "free",
     },
     membershipExpiresAt: {

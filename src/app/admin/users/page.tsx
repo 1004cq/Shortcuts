@@ -43,7 +43,7 @@ type EditForm = {
   username: string;
   phone: string;
   role: "user" | "vip";
-  membership: "free" | "monthly" | "yearly";
+  membership: "free" | "monthly" | "quarterly" | "yearly";
   membershipExpiresAt: string;
   emailVerified: boolean;
   password: string;
@@ -392,8 +392,9 @@ export default function AdminUsersPage() {
                     className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-900 px-3 text-sm"
                   >
                     <option value="free">free</option>
-                    <option value="monthly">monthly</option>
-                    <option value="yearly">yearly</option>
+                    <option value="monthly">monthly（月卡）</option>
+                    <option value="quarterly">quarterly（季卡）</option>
+                    <option value="yearly">yearly（年卡）</option>
                   </select>
                 </div>
                 <div className="space-y-2 sm:col-span-2">

@@ -13,7 +13,12 @@ export function isVipActive(
 ): boolean {
   if (!user) return false;
   if (user.role === "admin") return true;
-  if (user.role === "vip" || user.membership === "monthly" || user.membership === "yearly") {
+  if (
+    user.role === "vip" ||
+    user.membership === "monthly" ||
+    user.membership === "quarterly" ||
+    user.membership === "yearly"
+  ) {
     if (!user.membershipExpiresAt) return user.role === "vip";
     return new Date(user.membershipExpiresAt).getTime() > Date.now();
   }
@@ -59,9 +64,11 @@ export function roleLabel(role: UserRole): string {
 export function membershipLabel(plan: MembershipPlan): string {
   switch (plan) {
     case "monthly":
-      return "月度会员";
+      return "月卡";
+    case "quarterly":
+      return "季卡";
     case "yearly":
-      return "年度会员";
+      return "年卡";
     default:
       return "免费用户";
   }

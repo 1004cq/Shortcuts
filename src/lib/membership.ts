@@ -12,6 +12,8 @@ export function calcMembershipWindow(
   const endsAt = new Date(startsAt);
   if (plan === "monthly") {
     endsAt.setMonth(endsAt.getMonth() + 1);
+  } else if (plan === "quarterly") {
+    endsAt.setMonth(endsAt.getMonth() + 3);
   } else {
     endsAt.setFullYear(endsAt.getFullYear() + 1);
   }
@@ -87,7 +89,10 @@ export async function fulfillPaidSubscription(opts: {
   if (user.membershipExpiresAt && user.membershipExpiresAt > paidAt) {
     periodStart = user.membershipExpiresAt;
   }
-  const { endsAt } = calcMembershipWindow(sub.plan as "monthly" | "yearly", periodStart);
+  const { endsAt } = calcMembershipWindow(
+    sub.plan as Exclude<MembershipPlan, "free">,
+    periodStart
+  );
 
   sub.status = "active";
   sub.startsAt = paidAt;

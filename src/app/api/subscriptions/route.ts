@@ -20,7 +20,7 @@ import {
 import { calcMembershipWindow, generateOutTradeNo } from "@/lib/membership";
 
 const checkoutSchema = z.object({
-  plan: z.enum(["monthly", "yearly"]),
+  plan: z.enum(["monthly", "quarterly", "yearly"]),
 });
 
 /**
@@ -51,7 +51,11 @@ export const POST = withApiHandler(async (req: Request) => {
     }
 
     const subject =
-      planMeta.id === "monthly" ? "MediaVault 月度会员" : "MediaVault 年度会员";
+      planMeta.id === "monthly"
+        ? "MediaVault 月卡"
+        : planMeta.id === "quarterly"
+          ? "MediaVault 季卡"
+          : "MediaVault 年卡";
 
     await Subscription.create({
       userId: sessionUser.id,

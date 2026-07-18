@@ -4,7 +4,7 @@
 
 export type UserRole = "user" | "vip" | "admin";
 
-export type MembershipPlan = "free" | "monthly" | "yearly";
+export type MembershipPlan = "free" | "monthly" | "quarterly" | "yearly";
 
 export type FileCategory =
   | "video"
@@ -75,7 +75,7 @@ export interface PricingPlan {
   name: string;
   price: number;
   currency: string;
-  interval: "month" | "year" | "forever";
+  interval: "month" | "quarter" | "year" | "forever";
   features: string[];
   highlighted?: boolean;
 }
@@ -91,30 +91,41 @@ export const PRICING_PLANS: PricingPlan[] = [
   },
   {
     id: "monthly",
-    name: "月度会员",
-    price: 29,
+    name: "月卡",
+    price: 3,
     currency: "CNY",
     interval: "month",
-    highlighted: true,
     features: [
       "无限下载",
       "在线音视频播放",
       "流式传输大文件",
       "下载历史记录",
+    ],
+  },
+  {
+    id: "quarterly",
+    name: "季卡",
+    price: 9,
+    currency: "CNY",
+    interval: "quarter",
+    highlighted: true,
+    features: [
+      "包含月卡全部权益",
+      "有效期 3 个月",
       "优先客服支持",
     ],
   },
   {
     id: "yearly",
-    name: "年度会员",
-    price: 288,
+    name: "年卡",
+    price: 36,
     currency: "CNY",
     interval: "year",
     features: [
-      "包含月度全部权益",
-      "相当于每月 ¥24",
+      "包含月卡全部权益",
+      "有效期 12 个月",
+      "相当于每月 ¥3",
       "专属年度徽章",
-      "优先新功能体验",
     ],
   },
 ];

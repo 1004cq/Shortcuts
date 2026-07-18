@@ -14,7 +14,7 @@ const SubscriptionSchema = new Schema(
     },
     plan: {
       type: String,
-      enum: ["monthly", "yearly"] satisfies Exclude<MembershipPlan, "free">[],
+      enum: ["monthly", "quarterly", "yearly"] satisfies Exclude<MembershipPlan, "free">[],
       required: true,
     },
     status: {

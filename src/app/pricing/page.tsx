@@ -108,14 +108,14 @@ export default function PricingPage() {
           )}
         </div>
 
-        <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {PRICING_PLANS.map((plan) => (
             <Card
               key={plan.id}
               className={cn(
                 "relative overflow-hidden rounded-2xl transition duration-300 hover:-translate-y-1",
                 plan.highlighted &&
-                  "order-first border-primary shadow-lg shadow-primary/20 md:order-none"
+                  "border-primary shadow-lg shadow-primary/20"
               )}
             >
               {plan.highlighted && <div className="absolute inset-x-0 top-0 h-1 bg-primary" />}
@@ -134,7 +134,14 @@ export default function PricingPage() {
                     ¥{plan.price}
                   </span>
                   <span className="text-muted-foreground">
-                    /{plan.interval === "month" ? "月" : plan.interval === "year" ? "年" : "永久"}
+                    /
+                    {plan.interval === "month"
+                      ? "月"
+                      : plan.interval === "quarter"
+                        ? "季"
+                        : plan.interval === "year"
+                          ? "年"
+                          : "永久"}
                   </span>
                 </CardDescription>
               </CardHeader>
