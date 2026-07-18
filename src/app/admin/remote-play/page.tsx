@@ -424,21 +424,24 @@ export default function AdminRemotePlayPage() {
             </Button>
 
             <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">iPhone 快捷指令配置（逐步）</p>
+              <p className="font-medium text-foreground">iPhone 快捷指令（不用「获取词典」）</p>
               <ol className="mt-2 list-decimal space-y-1.5 pl-5">
                 <li>打开「快捷指令」→ 新建</li>
-                <li>添加「<span className="text-foreground">重复</span>」→ 次数填 <span className="text-foreground">9999</span></li>
-                <li>在重复内添加「<span className="text-foreground">获取 URL 内容</span>」</li>
-                <li>URL 粘贴上方轮询地址；方法 GET</li>
-                <li>添加「<span className="text-foreground">获取词典</span>」← 获取 URL 内容</li>
-                <li>添加「<span className="text-foreground">如果</span>」：词典的 <code className="text-foreground">pending</code> 为 <span className="text-foreground">真</span></li>
-                <li>如果内：「获取词典值」键名 <code className="text-foreground">audioUrl</code></li>
-                <li>「获取 URL 内容」← audioUrl（下载音频文件）</li>
-                <li>「播放声音」← 上一步的文件</li>
-                <li>保存；需要接听时运行此捷径（捷径保持运行即可，不必开 Safari）</li>
+                <li>添加「<span className="text-foreground">重复</span>」→ 次数 <span className="text-foreground">9999</span></li>
+                <li>重复内：「<span className="text-foreground">获取 URL 内容</span>」→ 粘贴上方轮询地址</li>
+                <li>
+                  添加「<span className="text-foreground">如果</span>」：获取 URL 内容{" "}
+                  <span className="text-foreground">有任何值</span>
+                </li>
+                <li>
+                  如果里面：再加「<span className="text-foreground">获取 URL 内容</span>」→ URL
+                  选上一步的文本（音频地址）
+                </li>
+                <li>「<span className="text-foreground">播放声音</span>」← 第二个获取 URL 内容</li>
+                <li>保存并运行（不用开浏览器、不用词典）</li>
               </ol>
               <p className="mt-3 text-xs text-amber-200/90">
-                说明：iOS 不允许捷径在锁屏后无限后台跑。屏幕亮着、捷径在跑时延迟最低；锁屏后需再点一次运行。
+                接口直接返回纯文本音频链接；空内容=暂时没播。锁屏后捷径可能暂停，再点运行即可。
               </p>
             </div>
 

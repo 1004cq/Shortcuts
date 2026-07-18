@@ -94,7 +94,7 @@ export const POST = withApiHandler(async (req: Request) => {
       /** 可选：网页 WebSocket 接收端 */
       receiverUrl: buildReceiverUrl(userId),
       shortcutHint:
-        "快捷指令：重复 → 获取 URL 内容(pollUrl) → 若有 audioUrl 则下载并播放声音",
+        "快捷指令：重复 → 获取 URL 内容(pollUrl) → 若有内容则再获取该 URL 并播放声音（无需词典）",
     });
   }
 

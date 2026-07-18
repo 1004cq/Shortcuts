@@ -192,9 +192,36 @@ app.get("/api/online", (req, res) => {
 });
 
 /**
- * GET /api/poll — Shortcuts long-poll (推荐，无需开浏览器)
- * Query: userId, token (RECEIVER_TOKEN), wait=25 (seconds, max 55)
- * Returns immediately when admin pushes play/stop; otherwise { pending:false } after wait.
+ * Respond in Shortcuts-friendly formats (no Dictionary actions needed).
+ * format=url  → text/plain: audioUrl | STOP | (empty idle)
+ * format=json → JSON (default)
+ */
+function sendPollResult(res, payload, format) {
+  const fmt = String(format || "json").toLowerCase();
+  if (fmt === "url" || fmt === "text" || fmt === "plain") {
+    if (!payload || payload.type === "idle" || payload.pending === false) {
+      res.status(200).type("text/plain").send("");
+      return;
+    }
+    if (payload.type === "stop") {
+      res.status(200).type("text/plain").send("STOP");
+      return;
+    }
+    // play
+    res.status(200).type("text/plain").send(String(payload.audioUrl || ""));
+    return;
+  }
+  if (!payload || payload.type === "idle") {
+    res.json({ ok: true, pending: false, type: "idle" });
+    return;
+  }
+  res.json({ ok: true, pending: true, ...payload });
+}
+
+/**
+ * GET /api/poll — Shortcuts long-poll (推荐，无需开浏览器 / 无需「获取词典」)
+ * Query: userId, token, wait=25, format=url|json
+ * format=url → 纯文本音频地址（捷径最简单）
  */
 app.get("/api/poll", (req, res) => {
   const token = String(req.query.token || req.header("x-auth-token") || "");
@@ -206,18 +233,19 @@ app.get("/api/poll", (req, res) => {
     return res.status(400).json({ error: "userId required" });
   }
 
+  const format = String(req.query.format || "url");
   const waitSec = Math.min(55, Math.max(1, Number(req.query.wait || 25)));
   const box = getMailbox(userId);
 
   if (box.queue.length > 0) {
     const payload = box.queue.shift();
-    return res.json({ ok: true, pending: true, ...payload });
+    return sendPollResult(res, payload, format);
   }
 
   const timer = setTimeout(() => {
     box.waiters = box.waiters.filter((w) => w.res !== res);
     if (!res.headersSent) {
-      res.json({ ok: true, pending: false, type: "idle" });
+      sendPollResult(res, { type: "idle", pending: false }, format);
     }
   }, waitSec * 1000);
 
@@ -226,7 +254,7 @@ app.get("/api/poll", (req, res) => {
     timer,
     resolve: (payload) => {
       if (!res.headersSent) {
-        res.json({ ok: true, pending: true, ...payload });
+        sendPollResult(res, payload, format);
       }
     },
   };

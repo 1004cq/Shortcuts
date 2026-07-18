@@ -25,13 +25,14 @@ export function buildReceiverUrl(userId: string): string {
   return `${app}/admin/rx?${q.toString()}`;
 }
 
-/** Shortcuts long-poll URL — no Safari/WebSocket needed */
+/** Shortcuts long-poll URL — plain-text audioUrl (no Dictionary action) */
 export function buildPollUrl(userId: string, waitSec = 25): string {
   const token = getRemoteAudioReceiverToken();
   const q = new URLSearchParams({
     userId,
     token,
     wait: String(waitSec),
+    format: "url",
   });
   return `${getRemoteAudioBase()}/api/poll?${q.toString()}`;
 }
