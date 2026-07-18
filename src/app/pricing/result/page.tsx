@@ -133,7 +133,7 @@ export default function PricingResultPage() {
   return (
     <React.Suspense
       fallback={
-        <div className="flex min-h-[100dvh] items-center justify-center text-muted-foreground">
+        <div className="flex h-40 items-center justify-center text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       }

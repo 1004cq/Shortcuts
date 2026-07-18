@@ -34,10 +34,10 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-[100dvh] bg-background text-foreground">
+      <div className="flex h-full min-h-0 w-full flex-1 bg-background text-foreground">
         <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Suspense fallback={<div className="h-14 border-b border-border sm:h-16" />}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <Suspense fallback={<div className="h-14 shrink-0 border-b border-border sm:h-16" />}>
             <Topbar
               viewMode={viewMode}
               onViewModeChange={onViewModeChange}

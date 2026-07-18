@@ -48,7 +48,7 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
   return (
     <div
       className={cn(
-        "admin-aurora relative flex min-h-[100dvh] text-foreground",
+        "admin-aurora relative flex h-full min-h-0 w-full flex-1 text-foreground",
         dark ? "dark bg-[#070b14]" : "bg-[#eef2f8]"
       )}
     >
@@ -143,8 +143,8 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
         </div>
       </aside>
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-white/10 liquid-glass-header px-3 sm:h-16 sm:px-4 md:px-8">
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/10 liquid-glass-header px-3 sm:h-16 sm:px-4 md:px-8">
           <div className="flex min-w-0 items-center gap-2 md:hidden">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-violet-500 text-white">
               <HardDrive className="h-4 w-4" />
@@ -221,7 +221,10 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
           </div>
         </nav>
 
-        <main className="flex-1 overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-4 md:p-8">
+        <main
+          data-scroll-root
+          className="scroll-root min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-4 md:p-6 lg:p-8"
+        >
           {children}
         </main>
       </div>

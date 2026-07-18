@@ -45,7 +45,10 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center px-4 py-10 safe-pb">
+    <div
+      data-scroll-root
+      className="scroll-root relative flex h-full min-h-0 items-center justify-center overflow-y-auto px-4 py-10 safe-pb"
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(59,130,246,0.18),_transparent_55%)]" />
       <Card className="w-full max-w-md rounded-2xl border-border/80 bg-card/80 shadow-2xl shadow-primary/5 backdrop-blur">
         <CardHeader className="space-y-3 text-center">

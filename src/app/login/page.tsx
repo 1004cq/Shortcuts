@@ -104,7 +104,10 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center px-4 py-10 safe-pb">
+    <div
+      data-scroll-root
+      className="scroll-root relative flex h-full min-h-0 items-center justify-center overflow-y-auto px-4 py-10 safe-pb"
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(59,130,246,0.18),_transparent_55%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_right,transparent,rgba(16,185,129,0.05))]" />
       <React.Suspense fallback={<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}>

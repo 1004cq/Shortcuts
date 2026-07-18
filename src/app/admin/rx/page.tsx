@@ -165,7 +165,10 @@ function ReceiverInner() {
   }, []);
 
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center bg-[#070b14] px-4 py-8 text-slate-100">
+    <div
+      data-scroll-root
+      className="scroll-root relative flex h-full min-h-0 items-center justify-center overflow-y-auto bg-[#070b14] px-4 py-8 text-slate-100"
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(56,189,248,0.22),_transparent_55%)]" />
       <div className="relative w-full max-w-md rounded-2xl border border-white/12 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-xl">
         <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">/admin/rx</p>
@@ -217,7 +220,7 @@ export default function AdminReceiverPage() {
   return (
     <React.Suspense
       fallback={
-        <div className="flex min-h-[100dvh] items-center justify-center bg-[#070b14] text-slate-400">
+        <div className="flex h-full min-h-0 items-center justify-center bg-[#070b14] text-slate-400">
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
       }

@@ -31,6 +31,13 @@
     --radius: 0.875rem;
     --gradient-spotlight: rgba(59, 130, 246, 0.1);
     --surface-glow: rgba(16, 185, 129, 0.05);
+    /* 1% of visual viewport height (updated by ViewportGuard) */
+    --vvh: 1vh;
+    --app-height: 100dvh;
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
   }
 
   .dark {
@@ -60,26 +67,72 @@
     --surface-glow: rgba(16, 185, 129, 0.06);
   }
 
-  * {
+  *,
+  *::before,
+  *::after {
     @apply border-border;
+    box-sizing: border-box;
   }
 
+  /*
+   * iOS overscroll: paint html/body with page background (never pure white),
+   * lock document scroll, scroll only inside [data-scroll-root].
+   */
   html {
+    height: 100%;
+    height: 100dvh;
     @apply scroll-smooth;
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overscroll-behavior: none;
+    background-color: hsl(var(--background));
+    color-scheme: light dark;
   }
 
   body {
+    margin: 0;
+    min-height: 100%;
+    min-height: 100dvh;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
     @apply bg-background text-foreground antialiased;
     font-family: "IBM Plex Sans", system-ui, sans-serif;
+    background-color: hsl(var(--background));
     background-image:
       radial-gradient(ellipse 90% 55% at 50% -25%, var(--gradient-spotlight), transparent 60%),
       radial-gradient(ellipse 50% 40% at 100% 0%, var(--surface-glow), transparent 50%);
-    min-height: 100dvh;
+    background-attachment: fixed;
+    padding:
+      var(--sat)
+      var(--sar)
+      0
+      var(--sal);
+  }
+
+  /* App shell — fills visual viewport; children scroll internally */
+  #app.app-root {
+    height: var(--app-height, 100dvh);
+    max-height: var(--app-height, 100dvh);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    overscroll-behavior: none;
+    position: relative;
   }
 
   .font-display {
     font-family: "Outfit", "IBM Plex Sans", system-ui, sans-serif;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+    height: auto;
   }
 
   /* Safer touch targets on mobile */
@@ -90,6 +143,12 @@
       min-height: 2.25rem;
     }
   }
+
+  /* Hide mobile tab bar chrome offset when keyboard open */
+  html.vv-keyboard [data-mobile-tabbar] {
+    transform: translateY(110%);
+    pointer-events: none;
+  }
 }
 
 @layer utilities {
@@ -98,6 +157,16 @@
   }
   .safe-pt {
     padding-top: env(safe-area-inset-top);
+  }
+  .safe-px {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+  .h-app {
+    height: var(--app-height, 100dvh);
+  }
+  .min-h-app {
+    min-height: var(--app-height, 100dvh);
   }
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -108,6 +177,12 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+  /* Scroll containers that participate in overscroll containment */
+  .scroll-root {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 }
 

@@ -74,7 +74,10 @@ function VerifyInner() {
 
 export default function VerifyPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div
+      data-scroll-root
+      className="scroll-root flex h-full min-h-0 items-center justify-center overflow-y-auto px-4"
+    >
       <React.Suspense fallback={<Loader2 className="h-6 w-6 animate-spin" />}>
         <VerifyInner />
       </React.Suspense>

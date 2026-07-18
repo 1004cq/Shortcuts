@@ -107,7 +107,10 @@ function AdminLoginForm() {
 
 export default function AdminLoginPage() {
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center bg-[#0b1220] px-4 py-10">
+    <div
+      data-scroll-root
+      className="scroll-root relative flex h-full min-h-0 items-center justify-center overflow-y-auto bg-[#0b1220] px-4 py-10"
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(59,130,246,0.16),_transparent_55%)]" />
       <React.Suspense fallback={<Loader2 className="h-6 w-6 animate-spin text-slate-400" />}>
         <AdminLoginForm />

@@ -26,8 +26,11 @@ export function MobileTabBar() {
     : tabs;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/90 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
-      <ul className="flex h-14 items-stretch justify-around sm:h-16">
+    <nav
+      data-mobile-tabbar
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl transition-transform duration-200 md:hidden supports-[backdrop-filter]:bg-background/85"
+    >
+      <ul className="flex h-14 items-stretch justify-around">
         {items.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (

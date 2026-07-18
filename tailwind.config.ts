@@ -9,6 +9,22 @@ const config: Config = {
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
+    /**
+     * Mobile-first breakpoints (min-width):
+     * sm 640 — large phones / small tablets
+     * md 768 — tablets
+     * lg 1024 — laptops
+     * xl 1280 — desktops
+     * 2xl 1536 — wide
+     */
+    screens: {
+      xs: "390px",
+      sm: "640px",
+      md: "768px",
+      lg: "1024px",
+      xl: "1280px",
+      "2xl": "1536px",
+    },
     extend: {
       colors: {
         border: "hsl(var(--border))",
@@ -72,6 +88,14 @@ const config: Config = {
       animation: {
         "fade-in": "fade-in 0.4s ease-out",
         "slide-up": "slide-up 0.45s ease-out",
+      },
+      spacing: {
+        "safe-b": "env(safe-area-inset-bottom)",
+        "safe-t": "env(safe-area-inset-top)",
+        tabbar: "calc(3.5rem + env(safe-area-inset-bottom))",
+      },
+      maxWidth: {
+        content: "80rem",
       },
     },
   },
