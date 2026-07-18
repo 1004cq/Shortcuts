@@ -37,7 +37,8 @@ export const GET = withApiHandler(async (req: Request) => {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 20)));
   const q = (url.searchParams.get("q") || "").trim();
 
-  const filter: Record<string, unknown> = {};
+  // Admin accounts are managed only under /admin/settings
+  const filter: Record<string, unknown> = { role: { $ne: "admin" } };
   if (q) {
     const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     filter.$or = [
@@ -69,16 +70,16 @@ const patchSchema = z.object({
   email: z.string().email().max(254).optional(),
   username: usernameSchema.optional().nullable(),
   phone: phoneSchema.optional().nullable(),
-  role: z.enum(["user", "vip", "admin"]).optional(),
+  role: z.enum(["user", "vip"]).optional(),
   membership: z.enum(["free", "monthly", "yearly"]).optional(),
   membershipExpiresAt: z.string().datetime().nullable().optional(),
   emailVerified: z.boolean().optional(),
-  /** Admin-set new password; omit or empty to leave unchanged */
+  /** Admin-set new password for members; omit or empty to leave unchanged */
   password: passwordSchema.optional(),
 });
 
 export const PATCH = withApiHandler(async (req: Request) => {
-  const admin = await requireAdmin();
+  await requireAdmin();
   const body = await req.json();
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
@@ -90,14 +91,14 @@ export const PATCH = withApiHandler(async (req: Request) => {
     throw new ApiError("无效用户 ID", 400);
   }
 
-  if (parsed.data.userId === admin.id && parsed.data.role && parsed.data.role !== "admin") {
-    throw new ApiError("不能降级自己的管理员权限", 400);
-  }
-
   await connectDB();
   const user = await User.findById(parsed.data.userId);
   if (!user) {
     throw new ApiError("用户不存在", 404);
+  }
+
+  if (user.role === "admin") {
+    throw new ApiError("管理员账号请在「系统设置」中修改", 403);
   }
 
   if (parsed.data.name !== undefined) {
@@ -205,10 +206,6 @@ export const DELETE = withApiHandler(async (req: Request) => {
     throw new ApiError("无效用户 ID", 400);
   }
 
-  if (parsed.data.userId === admin.id) {
-    throw new ApiError("不能删除当前登录的管理员账号", 400);
-  }
-
   await connectDB();
   const user = await User.findById(parsed.data.userId);
   if (!user) {
@@ -216,10 +213,11 @@ export const DELETE = withApiHandler(async (req: Request) => {
   }
 
   if (user.role === "admin") {
-    const adminCount = await User.countDocuments({ role: "admin" });
-    if (adminCount <= 1) {
-      throw new ApiError("不能删除唯一的管理员账号", 400);
-    }
+    throw new ApiError("不能通过用户管理删除管理员账号", 403);
+  }
+
+  if (parsed.data.userId === admin.id) {
+    throw new ApiError("不能删除当前登录账号", 400);
   }
 
   const userId = user._id;

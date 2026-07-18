@@ -17,6 +17,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Radio,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ const adminLinks = [
   { href: "/admin/users", label: "用户管理", icon: Users },
   { href: "/admin/downloads", label: "下载统计", icon: Shield },
   { href: "/admin/remote-play", label: "远程音频", icon: Radio },
+  { href: "/admin/settings", label: "系统设置", icon: Settings },
 ];
 
 /**

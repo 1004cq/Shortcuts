@@ -42,7 +42,7 @@ type EditForm = {
   email: string;
   username: string;
   phone: string;
-  role: "user" | "vip" | "admin";
+  role: "user" | "vip";
   membership: "free" | "monthly" | "yearly";
   membershipExpiresAt: string;
   emailVerified: boolean;
@@ -103,7 +103,7 @@ export default function AdminUsersPage() {
       email: u.email || "",
       username: u.username || "",
       phone: u.phone || "",
-      role: (u.role as EditForm["role"]) || "user",
+      role: u.role === "vip" ? "vip" : "user",
       membership: (u.membership as EditForm["membership"]) || "free",
       membershipExpiresAt: toLocalInputValue(u.membershipExpiresAt),
       emailVerified: Boolean(u.emailVerified),
@@ -112,20 +112,18 @@ export default function AdminUsersPage() {
     });
   };
 
-  const setRoleQuick = async (userId: string, role: "user" | "vip" | "admin") => {
+  const setRoleQuick = async (userId: string, role: "user" | "vip") => {
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId,
         role,
-        membership: role === "user" ? "free" : role === "vip" ? "monthly" : undefined,
+        membership: role === "user" ? "free" : "monthly",
         membershipExpiresAt:
           role === "vip"
             ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            : role === "user"
-              ? null
-              : undefined,
+            : null,
       }),
     });
     if (res.ok) load(q);
@@ -206,6 +204,9 @@ export default function AdminUsersPage() {
 
   return (
     <AdminShell title="用户管理">
+      <p className="mb-3 text-xs text-slate-400">
+        仅管理普通用户与 VIP。管理员账号请到「系统设置」修改。
+      </p>
       <div className="mb-4 flex gap-2">
         <Input
           value={q}
@@ -280,9 +281,6 @@ export default function AdminUsersPage() {
                     <Button size="sm" variant="ghost" onClick={() => setRoleQuick(u._id, "vip")}>
                       VIP
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setRoleQuick(u._id, "admin")}>
-                      管理员
-                    </Button>
                     <Button
                       size="sm"
                       variant="destructive"
@@ -318,7 +316,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>编辑用户</DialogTitle>
             <DialogDescription className="text-slate-400">
-              可修改资料、角色、会员状态与密码。系统 ID：{editing?._id}
+              可修改普通用户资料、会员与密码。管理员请到系统设置。ID：{editing?._id}
             </DialogDescription>
           </DialogHeader>
           {form && (
@@ -378,7 +376,6 @@ export default function AdminUsersPage() {
                   >
                     <option value="user">user（免费）</option>
                     <option value="vip">vip</option>
-                    <option value="admin">admin</option>
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -448,7 +445,7 @@ export default function AdminUsersPage() {
                     placeholder="再次输入新密码"
                   />
                   <p className="text-xs text-slate-500">
-                    至少 8 位，需包含字母和数字。可用于修改管理员或任意用户密码。
+                    至少 8 位，需包含字母和数字。管理员密码请在系统设置中修改。
                   </p>
                 </div>
               </div>
