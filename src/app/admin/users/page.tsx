@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 
 type UserRow = {
   _id: string;
@@ -72,6 +72,7 @@ export default function AdminUsersPage() {
   const [form, setForm] = React.useState<EditForm | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [editError, setEditError] = React.useState("");
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const load = React.useCallback(async (query = "") => {
     setLoading(true);
@@ -124,6 +125,34 @@ export default function AdminUsersPage() {
       }),
     });
     if (res.ok) load(q);
+  };
+
+  const deleteUser = async (u: UserRow) => {
+    const label = u.email || u.name || u._id;
+    const ok = window.confirm(
+      `确定删除用户「${label}」？\n此操作不可恢复，将同时清除其订阅与下载记录。`
+    );
+    if (!ok) return;
+    setDeletingId(u._id);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: u._id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "删除失败");
+      if (editing?._id === u._id) {
+        setEditing(null);
+        setForm(null);
+      }
+      await load(q);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const saveEdit = async (e: React.FormEvent) => {
@@ -237,6 +266,19 @@ export default function AdminUsersPage() {
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setRoleQuick(u._id, "admin")}>
                       管理员
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={deletingId === u._id}
+                      onClick={() => void deleteUser(u)}
+                    >
+                      {deletingId === u._id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      删除
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -366,21 +408,36 @@ export default function AdminUsersPage() {
                 </label>
               </div>
               {editError && <p className="text-sm text-red-400">{editError}</p>}
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Button
                   type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditing(null);
-                    setForm(null);
-                  }}
+                  variant="destructive"
+                  disabled={!editing || deletingId === editing._id || saving}
+                  onClick={() => editing && void deleteUser(editing)}
                 >
-                  取消
+                  {deletingId === editing?._id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  删除用户
                 </Button>
-                <Button type="submit" disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  保存
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditing(null);
+                      setForm(null);
+                    }}
+                  >
+                    取消
+                  </Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    保存
+                  </Button>
+                </div>
               </div>
             </form>
           )}

@@ -4,6 +4,8 @@ import { z } from "zod";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
+import { Subscription } from "@/models/Subscription";
+import { DownloadLog } from "@/models/DownloadLog";
 import {
   ApiError,
   jsonOk,
@@ -169,4 +171,50 @@ export const PATCH = withApiHandler(async (req: Request) => {
   }
 
   return jsonOk({ item: user });
+});
+
+const deleteSchema = z.object({
+  userId: z.string(),
+});
+
+export const DELETE = withApiHandler(async (req: Request) => {
+  const admin = await requireAdmin();
+  const body = await req.json().catch(() => ({}));
+  const parsed = deleteSchema.safeParse(body);
+  if (!parsed.success) {
+    throw new ApiError("缺少 userId", 400);
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(parsed.data.userId)) {
+    throw new ApiError("无效用户 ID", 400);
+  }
+
+  if (parsed.data.userId === admin.id) {
+    throw new ApiError("不能删除当前登录的管理员账号", 400);
+  }
+
+  await connectDB();
+  const user = await User.findById(parsed.data.userId);
+  if (!user) {
+    throw new ApiError("用户不存在", 404);
+  }
+
+  if (user.role === "admin") {
+    const adminCount = await User.countDocuments({ role: "admin" });
+    if (adminCount <= 1) {
+      throw new ApiError("不能删除唯一的管理员账号", 400);
+    }
+  }
+
+  const userId = user._id;
+  await Promise.all([
+    Subscription.deleteMany({ userId }),
+    DownloadLog.deleteMany({ userId }),
+  ]);
+  await User.deleteOne({ _id: userId });
+
+  return jsonOk({
+    ok: true,
+    deletedUserId: String(userId),
+  });
 });
