@@ -37,7 +37,7 @@ const adminNav = [
   { href: "/admin/files", label: "文件管理", icon: HardDrive },
   { href: "/admin/users", label: "用户管理", icon: Users },
   { href: "/admin/downloads", label: "下载统计", icon: Shield },
-  { href: "/admin/settings", label: "系统设置", icon: Shield },
+  { href: "/admin/settings", label: "系统设置", icon: Settings },
 ];
 
 function SidebarNav() {
