@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>位置音频 · 管理后台</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: rgba(255,255,255,0.06);
+      --line: rgba(255,255,255,0.12);
+      --text: #e8eef8;
+      --muted: #93a4bd;
+      --accent: #38bdf8;
+      --ok: #34d399;
+      --bad: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56,189,248,0.25), transparent 60%),
+        var(--bg);
+      padding: 1rem;
+    }
+    h1 { font-size: 1.35rem; margin: 0 0 0.25rem; }
+    p.sub { color: var(--muted); margin: 0 0 1.25rem; font-size: 0.9rem; }
+    .grid { display: grid; gap: 1rem; }
+    @media (min-width: 900px) {
+      .grid { grid-template-columns: 1fr 1fr; align-items: start; }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1rem 1.1rem;
+      backdrop-filter: blur(12px);
+    }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    input, textarea {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.35);
+      color: var(--text);
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 0.75rem;
+      font: inherit;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 0.65rem 1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #062033;
+    }
+    button.secondary { background: rgba(255,255,255,0.1); color: var(--text); }
+    button.danger { background: rgba(248,113,113,0.2); color: #fecaca; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .msg { font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.2em; }
+    .msg.ok { color: var(--ok); }
+    .msg.err { color: var(--bad); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.55rem 0.35rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    a { color: var(--accent); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(56,189,248,0.15);
+      color: var(--accent);
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>位置音频拉取 · 管理后台</h1>
+  <p class="sub">投递待播音频 → 用户手动运行快捷指令上报 GPS 并拉取播放。无需后台轮询。</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2 style="margin-top:0;font-size:1.05rem;">发送音频</h2>
+      <label for="token">管理员 Token</label>
+      <input id="token" type="password" placeholder="与服务器 ADMIN_TOKEN 一致" autocomplete="off" />
+
+      <label for="userId">目标用户 ID</label>
+      <input id="userId" placeholder="例如 iphone_01" />
+
+      <label for="audioUrl">音频 HTTPS / HTTP 链接</label>
+      <input id="audioUrl" placeholder="https://example.com/a.mp3" />
+
+      <label for="title">标题（可选）</label>
+      <input id="title" placeholder="管理员推送" />
+
+      <div class="row">
+        <button id="btnSend" type="button">发送到待播队列</button>
+        <button id="btnClear" class="danger" type="button">清空该用户队列</button>
+      </div>
+      <div id="sendMsg" class="msg"></div>
+    </section>
+
+    <section class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+        <h2 style="margin:0;font-size:1.05rem;">用户最新位置</h2>
+        <button id="btnRefresh" class="secondary" type="button">刷新</button>
+      </div>
+      <div id="locMsg" class="msg"></div>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>用户</th>
+              <th>坐标</th>
+              <th>精度</th>
+              <th>更新时间</th>
+              <th>队列</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="locBody">
+            <tr><td colspan="6" style="color:var(--muted)">暂无数据</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:1rem;">
+    <h2 style="margin-top:0;font-size:1.05rem;">快捷指令拉取地址</h2>
+    <p class="sub" style="margin-bottom:0.5rem;">POST JSON 到：</p>
+    <code class="mono" id="pullUrl"></code>
+  </section>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const tokenKey = "lap_admin_token";
+
+    function apiBase() {
+      return location.origin.replace(/\/$/, "");
+    }
+
+    $("pullUrl").textContent = apiBase() + "/api/pull";
+    $("token").value = localStorage.getItem(tokenKey) || "";
+
+    $("token").addEventListener("change", () => {
+      localStorage.setItem(tokenKey, $("token").value.trim());
+    });
+
+    function token() {
+      const t = $("token").value.trim();
+      localStorage.setItem(tokenKey, t);
+      return t;
+    }
+
+    function setMsg(el, text, ok) {
+      el.textContent = text || "";
+      el.className = "msg " + (ok === true ? "ok" : ok === false ? "err" : "");
+    }
+
+    async function sendPlay() {
+      const btn = $("btnSend");
+      btn.disabled = true;
+      setMsg($("sendMsg"), "发送中…");
+      try {
+        const res = await fetch(apiBase() + "/api/admin/play", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-token": token(),
+          },
+          body: JSON.stringify({
+            userId: $("userId").value.trim(),
+            audioUrl: $("audioUrl").value.trim(),
+            title: $("title").value.trim() || "管理员推送",
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "发送失败");
+        setMsg($("sendMsg"), `已入队 commandId=${data.commandId} · 队列长度 ${data.queueLength}`, true);
+        await loadLocations();
+      } catch (e) {
+        setMsg($("sendMsg"), e.message || String(e), false);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function clearQueue() {
+      if (!confirm("确定清空该用户待播队列？")) return;
+      try {
+        const res = await fetch(apiBase() + "/api/admin/clear", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-token": token(),
+          },
+          body: JSON.stringify({ userId: $("userId").value.trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "清空失败");
+        setMsg($("sendMsg"), "已清空队列", true);
+        await loadLocations();
+      } catch (e) {
+        setMsg($("sendMsg"), e.message || String(e), false);
+      }
+    }
+
+    function fmtTime(ts) {
+      try {
+        return new Date(ts).toLocaleString();
+      } catch {
+        return String(ts);
+      }
+    }
+
+    async function loadLocations() {
+      setMsg($("locMsg"), "加载中…");
+      try {
+        const res = await fetch(apiBase() + "/api/admin/locations", {
+          headers: { "x-admin-token": token() },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "加载失败");
+        const body = $("locBody");
+        if (!data.items || !data.items.length) {
+          body.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">暂无上报</td></tr>';
+          setMsg($("locMsg"), "0 个用户", true);
+          return;
+        }
+        body.innerHTML = data.items
+          .map((u) => {
+            const q = u.queueLength > 0 ? `<span class="pill">${u.queueLength} 待播</span>` : "—";
+            return `<tr>
+              <td class="mono">${escapeHtml(u.userId)}</td>
+              <td class="mono">${u.lat.toFixed(5)}, ${u.lng.toFixed(5)}</td>
+              <td>${u.accuracy != null ? Math.round(u.accuracy) + "m" : "—"}</td>
+              <td>${fmtTime(u.updatedAt)}</td>
+              <td>${q}</td>
+              <td><a href="${u.mapUrl}" target="_blank" rel="noopener">地图</a>
+                <button type="button" class="secondary" style="padding:0.25rem 0.5rem;margin-left:0.35rem;font-size:0.75rem"
+                  data-pick="${escapeHtml(u.userId)}">选用</button></td>
+            </tr>`;
+          })
+          .join("");
+        body.querySelectorAll("[data-pick]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            $("userId").value = btn.getAttribute("data-pick") || "";
+          });
+        });
+        setMsg($("locMsg"), `${data.count} 个用户`, true);
+      } catch (e) {
+        setMsg($("locMsg"), e.message || String(e), false);
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    $("btnSend").addEventListener("click", () => void sendPlay());
+    $("btnClear").addEventListener("click", () => void clearQueue());
+    $("btnRefresh").addEventListener("click", () => void loadLocations());
+    if ($("token").value) void loadLocations();
+    setInterval(() => {
+      if ($("token").value) void loadLocations();
+    }, 15000);
+  </script>
+</body>
+</html>
