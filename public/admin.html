@@ -20,12 +20,14 @@
         .btn-sm { padding: 6px 12px; font-size: 12px; width: auto; margin-bottom: 2px; }
         .btn-danger { background: #ff3b30; }
         .btn-success { background: #34c759; }
+        .btn-info { background: #5856d6; }
         .form-section { background: #f9f9f9; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #eee; }
-        .form-inline { display: flex; gap: 10px; flex-wrap: wrap; }
+        .form-inline { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
         .form-inline input { flex: 1; min-width: 120px; margin: 0; }
         .badge { padding: 2px 8px; border-radius: 12px; font-weight: bold; font-size: 12px; }
         .badge-remaining { background: #e3f2fd; color: #1976d2; }
         .badge-used { background: #f1f8e9; color: #388e3c; }
+        .id-rule { font-size: 12px; color: #666; margin-top: 5px; }
         @media (max-width: 600px) {
             .form-inline { flex-direction: column; }
             .form-inline input { width: 100%; }
@@ -48,14 +50,18 @@
             
             <!-- 添加/更新用户 -->
             <div class="form-section">
-                <h3>添加或修改用户音频</h3>
+                <h3>{{ isEditing ? '修改用户音频' : '添加新用户' }}</h3>
                 <div class="form-inline">
-                    <input v-model="newUser.userId" placeholder="用户ID">
+                    <div style="flex: 1; display: flex; gap: 5px;">
+                        <input v-model="newUser.userId" placeholder="用户ID (2-8位字母数字)" :disabled="isEditing">
+                        <button v-if="!isEditing" @click="generateRandomId" class="btn-sm btn-info">随机ID</button>
+                    </div>
                     <input v-model="newUser.audioUrl" placeholder="音频URL">
                     <input v-if="!isEditing" v-model="newUser.initialTimes" type="number" placeholder="初始次数">
                     <button @click="saveUser" class="btn-sm">{{ isEditing ? '更新音频' : '创建用户' }}</button>
                     <button v-if="isEditing" @click="cancelEdit" class="btn-sm" style="background:#8e8e93">取消</button>
                 </div>
+                <div class="id-rule">规则：用户ID最短2位，最长8位，只能包含字母和数字。</div>
             </div>
 
             <!-- 用户列表 -->
@@ -81,7 +87,7 @@
                             </td>
                             <td style="font-size: 11px; color: #666;">{{ formatDate(user.lastAccessTime) }}</td>
                             <td class="actions">
-                                <button @click="rechargePrompt(user.userId)" class="btn-sm btn-success">增加次数</button>
+                                <button @click="rechargePrompt(user.userId)" class="btn-sm btn-success">充值次数</button>
                                 <button @click="editUser(user)" class="btn-sm">修改音频</button>
                                 <button @click="deleteUser(user.userId)" class="btn-sm btn-danger">删除</button>
                             </td>
@@ -127,8 +133,24 @@
                         this.users = await res.json();
                     }
                 },
+                generateRandomId() {
+                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                    const len = Math.floor(Math.random() * 7) + 2; // 2-8位
+                    let result = '';
+                    for (let i = 0; i < len; i++) {
+                        result += chars.charAt(Math.floor(Math.random() * chars.length));
+                    }
+                    this.newUser.userId = result;
+                },
                 async saveUser() {
                     if (!this.newUser.userId || !this.newUser.audioUrl) return alert('请填写用户ID和音频URL');
+                    
+                    // 前端校验ID规则
+                    const regex = /^[a-zA-Z0-9]{2,8}$/;
+                    if (!regex.test(this.newUser.userId)) {
+                        return alert('用户ID不符合规则：必须为2-8位字母或数字');
+                    }
+
                     const res = await fetch('/api/users', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -137,6 +159,9 @@
                     if (res.ok) {
                         this.cancelEdit();
                         this.fetchUsers();
+                    } else {
+                        const err = await res.json();
+                        alert(err.message || '操作失败');
                     }
                 },
                 async rechargePrompt(userId) {

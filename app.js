@@ -17,7 +17,7 @@ const ADMIN_CONFIG = {
 // 中间件配置
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser('secret_key_for_shortcuts_times'));
+app.use(cookieParser('secret_key_for_shortcuts_times_v2'));
 app.use(express.static('public'));
 
 // 确保数据文件存在
@@ -35,6 +35,12 @@ async function getUsers() {
 // 写入数据
 async function saveUsers(users) {
     await fs.writeJson(DATA_FILE, users, { spaces: 2 });
+}
+
+// 用户ID校验规则：2-8位，只能包含字母和数字
+function isValidUserId(userId) {
+    const regex = /^[a-zA-Z0-9]{2,8}$/;
+    return regex.test(userId);
 }
 
 // --- 路由 ---
@@ -105,8 +111,14 @@ app.get('/api/users', authMiddleware, async (req, res) => {
 // 4. 添加/修改用户
 app.post('/api/users', authMiddleware, async (req, res) => {
     const { userId, audioUrl, initialTimes } = req.body;
-    if (!userId || !audioUrl) {
-        return res.status(400).json({ success: false, message: 'Missing userId or audioUrl' });
+    
+    // 校验用户ID
+    if (!isValidUserId(userId)) {
+        return res.status(400).json({ success: false, message: '用户ID必须为2-8位字母或数字' });
+    }
+
+    if (!audioUrl) {
+        return res.status(400).json({ success: false, message: 'Missing audioUrl' });
     }
 
     const users = await getUsers();
