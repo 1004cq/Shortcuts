@@ -76,9 +76,8 @@ async function handleShortLink(req, res) {
 
 // --- 路由 ---
 
-// 1. 短链接重定向（兼容两种路径）
+// 1. 短链接重定向（最终格式）
 app.get('/apl/:userId', handleShortLink);
-app.get('/apl/gt/:userId', handleShortLink);  // 推荐使用这个路径
 
 // 2. 管理员登录
 app.post('/api/login', (req, res) => {
@@ -166,6 +165,6 @@ app.delete('/api/users/:userId', authMiddleware, async (req, res) => {
 initFiles().then(() => {
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server running on port ${PORT}`);
-        console.log(`短链接格式: https://cq.imim.chat/apl/gt/{userId}`);
+        console.log(`短链接格式: https://cq.imim.chat/apl/{userId}`);
     });
 });
