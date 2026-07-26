@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>极简音频控制系统后台</title>
+    <title>音频控制系统后台</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #f4f7f6; margin: 0; padding: 10px; }
         .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -41,27 +41,26 @@
 
         <!-- 主界面 -->
         <div v-else>
-            <h1>极简音频次数控制系统</h1>
+            <h1>音频控制系统</h1>
 
             <!-- 全局配置 -->
             <div class="config-section">
-                <strong>1. 设置全局 API Token</strong>
+                <strong>1. 全局 Token 配置</strong>
                 <div class="form-inline" style="margin-top:10px">
-                    <input v-model="config.apiToken" placeholder="粘贴图片中的长 Token">
-                    <button @click="updateConfig" class="btn-sm">保存 Token</button>
+                    <input v-model="config.apiToken" placeholder="输入 API Token">
+                    <button @click="updateConfig" class="btn-sm">保存</button>
                 </div>
-                <div style="font-size:11px; color:#e65100; margin-top:5px">提示：只需设置一次，后续添加用户仅需填写文件 ID。</div>
             </div>
             
             <!-- 用户管理 -->
             <div class="form-section">
-                <strong>2. {{ isEditing ? '修改用户' : '添加新用户' }}</strong>
+                <strong>2. {{ isEditing ? '修改用户' : '添加用户' }}</strong>
                 <div class="form-inline" style="margin-top:10px">
                     <div style="flex: 1; display: flex; gap: 5px;">
-                        <input v-model="newUser.userId" placeholder="用户ID (2-8位)" :disabled="isEditing">
+                        <input v-model="newUser.userId" placeholder="用户ID" :disabled="isEditing">
                         <button v-if="!isEditing" @click="generateId" class="btn-sm btn-info">随机ID</button>
                     </div>
-                    <input v-model="newUser.fileId" placeholder="文件 ID (File ID)">
+                    <input v-model="newUser.fileId" placeholder="音频文件ID">
                     <input v-if="!isEditing" v-model="newUser.initialTimes" type="number" placeholder="初始次数" style="max-width:100px">
                     <button @click="saveUser" class="btn-sm">{{ isEditing ? '更新' : '创建' }}</button>
                     <button v-if="isEditing" @click="cancelEdit" class="btn-sm" style="background:#8e8e93">取消</button>
@@ -76,7 +75,7 @@
                             <th>用户ID</th>
                             <th>剩余次数</th>
                             <th>已使用</th>
-                            <th>绑定的文件ID</th>
+                            <th>音频文件ID</th>
                             <th>最后访问</th>
                             <th>操作</th>
                         </tr>
@@ -141,7 +140,7 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(this.config)
                     });
-                    alert('全局 Token 已保存');
+                    alert('已保存');
                 },
                 generateId() {
                     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
