@@ -14,13 +14,10 @@ const ADMIN_CONFIG = {
     password: '123456'
 };
 
-// 计费配置
-const PLAY_COST = 0.01;
-
 // 中间件配置
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser('secret_key_for_shortcuts_billing'));
+app.use(cookieParser('secret_key_for_shortcuts_times'));
 app.use(express.static('public'));
 
 // 确保数据文件存在
@@ -42,7 +39,7 @@ async function saveUsers(users) {
 
 // --- 路由 ---
 
-// 1. 短链接重定向（带计费逻辑）
+// 1. 短链接重定向（扣除次数逻辑）
 app.get('/apl/gt/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
@@ -55,18 +52,18 @@ app.get('/apl/gt/:userId', async (req, res) => {
 
         const user = users[userIndex];
         
-        // 检查余额
-        if (user.balance < PLAY_COST) {
-            return res.status(403).send('余额不足，请联系管理员充值');
+        // 检查剩余次数
+        if (!user.remainingTimes || user.remainingTimes < 1) {
+            return res.status(403).send('次数不足，请联系管理员充值次数');
         }
 
         if (!user.audioUrl) {
             return res.status(404).send('No audio bound to this user');
         }
 
-        // 扣费与统计 (原子更新)
-        user.balance = parseFloat((user.balance - PLAY_COST).toFixed(2));
-        user.totalPlays = (user.totalPlays || 0) + 1;
+        // 扣除次数与统计已使用次数
+        user.remainingTimes = (user.remainingTimes || 0) - 1;
+        user.usedTimes = (user.usedTimes || 0) + 1;
         user.lastAccessTime = new Date().toISOString();
         
         await saveUsers(users);
@@ -107,7 +104,7 @@ app.get('/api/users', authMiddleware, async (req, res) => {
 
 // 4. 添加/修改用户
 app.post('/api/users', authMiddleware, async (req, res) => {
-    const { userId, audioUrl, initialBalance } = req.body;
+    const { userId, audioUrl, initialTimes } = req.body;
     if (!userId || !audioUrl) {
         return res.status(400).json({ success: false, message: 'Missing userId or audioUrl' });
     }
@@ -123,8 +120,8 @@ app.post('/api/users', authMiddleware, async (req, res) => {
         users.push({
             userId,
             audioUrl,
-            balance: parseFloat(initialBalance) || 0,
-            totalPlays: 0,
+            remainingTimes: parseInt(initialTimes) || 0,
+            usedTimes: 0,
             lastAccessTime: null,
             createdAt: new Date().toISOString()
         });
@@ -134,10 +131,10 @@ app.post('/api/users', authMiddleware, async (req, res) => {
     res.json({ success: true });
 });
 
-// 5. 用户充值接口
+// 5. 增加次数（充值）接口
 app.post('/api/users/recharge', authMiddleware, async (req, res) => {
-    const { userId, amount } = req.body;
-    if (!userId || isNaN(amount)) {
+    const { userId, times } = req.body;
+    if (!userId || isNaN(times)) {
         return res.status(400).json({ success: false, message: 'Invalid parameters' });
     }
 
@@ -148,7 +145,7 @@ app.post('/api/users/recharge', authMiddleware, async (req, res) => {
         return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    users[userIndex].balance = parseFloat((users[userIndex].balance + parseFloat(amount)).toFixed(2));
+    users[userIndex].remainingTimes = (users[userIndex].remainingTimes || 0) + parseInt(times);
     await saveUsers(users);
     res.json({ success: true });
 });
