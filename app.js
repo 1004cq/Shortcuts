@@ -6,7 +6,9 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3005;
-const DATA_FILE = path.join(__dirname, 'data', 'users.json');
+const DATA_DIR = path.join(__dirname, 'data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 
 // 管理员账号密码
 const ADMIN_CONFIG = {
@@ -17,72 +19,65 @@ const ADMIN_CONFIG = {
 // 中间件配置
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser('secret_key_for_shortcuts_times_v2'));
+app.use(cookieParser('secret_key_for_shortcuts_v3'));
 app.use(express.static('public'));
 
-// 确保数据文件存在
-async function ensureDataFile() {
-    if (!await fs.pathExists(DATA_FILE)) {
-        await fs.outputJson(DATA_FILE, []);
-    }
+// 确保目录和文件存在
+async function initFiles() {
+    await fs.ensureDir(DATA_DIR);
+    if (!await fs.pathExists(USERS_FILE)) await fs.outputJson(USERS_FILE, []);
+    if (!await fs.pathExists(CONFIG_FILE)) await fs.outputJson(CONFIG_FILE, { apiToken: '' });
 }
 
-// 读取数据
-async function getUsers() {
-    return await fs.readJson(DATA_FILE);
-}
+// 数据操作
+async function getUsers() { return await fs.readJson(USERS_FILE); }
+async function saveUsers(users) { await fs.writeJson(USERS_FILE, users, { spaces: 2 }); }
+async function getConfig() { return await fs.readJson(CONFIG_FILE); }
+async function saveConfig(config) { await fs.writeJson(CONFIG_FILE, config, { spaces: 2 }); }
 
-// 写入数据
-async function saveUsers(users) {
-    await fs.writeJson(DATA_FILE, users, { spaces: 2 });
-}
-
-// 用户ID校验规则：2-8位，只能包含字母和数字
+// 用户ID校验：2-8位字母数字
 function isValidUserId(userId) {
-    const regex = /^[a-zA-Z0-9]{2,8}$/;
-    return regex.test(userId);
+    return /^[a-zA-Z0-9]{2,8}$/.test(userId);
 }
 
 // --- 路由 ---
 
-// 1. 短链接重定向（扣除次数逻辑）
+// 1. 短链接重定向（核心逻辑：扣次 + 自动拼接长链接）
 app.get('/apl/gt/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const users = await getUsers();
+        const [users, config] = await Promise.all([getUsers(), getConfig()]);
         const userIndex = users.findIndex(u => u.userId === userId);
 
-        if (userIndex === -1) {
-            return res.status(404).send('User not found');
-        }
-
+        if (userIndex === -1) return res.status(404).send('User not found');
         const user = users[userIndex];
-        
-        // 检查剩余次数
+
+        // 检查次数
         if (!user.remainingTimes || user.remainingTimes < 1) {
-            return res.status(403).send('次数不足，请联系管理员充值次数');
+            return res.status(403).send('次数不足，请充值');
         }
 
-        if (!user.audioUrl) {
-            return res.status(404).send('No audio bound to this user');
-        }
+        // 检查配置
+        if (!user.fileId) return res.status(404).send('No fileId bound to this user');
+        if (!config.apiToken) return res.status(500).send('System API Token not configured');
 
-        // 扣除次数与统计已使用次数
-        user.remainingTimes = (user.remainingTimes || 0) - 1;
+        // 扣费与统计
+        user.remainingTimes -= 1;
         user.usedTimes = (user.usedTimes || 0) + 1;
         user.lastAccessTime = new Date().toISOString();
-        
         await saveUsers(users);
 
-        // 重定向到音频地址
-        res.redirect(user.audioUrl);
+        // 自动拼接长链接并重定向
+        // 格式：https://cq.imim.chat/api/files/{fileId}/download?token={apiToken}
+        const longUrl = `https://cq.imim.chat/api/files/${user.fileId}/download?token=${config.apiToken}`;
+        res.redirect(longUrl);
     } catch (error) {
         console.error(error);
         res.status(500).send('Internal Server Error');
     }
 });
 
-// 2. 管理员登录接口
+// 2. 管理员登录
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     if (username === ADMIN_CONFIG.username && password === ADMIN_CONFIG.password) {
@@ -93,45 +88,42 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// 登录校验中间件
 const authMiddleware = (req, res, next) => {
-    if (req.signedCookies.is_admin === 'true') {
-        next();
-    } else {
-        res.status(403).json({ success: false, message: 'Unauthorized' });
-    }
+    if (req.signedCookies.is_admin === 'true') next();
+    else res.status(403).json({ success: false, message: 'Unauthorized' });
 };
 
-// 3. 用户列表获取
-app.get('/api/users', authMiddleware, async (req, res) => {
-    const users = await getUsers();
-    res.json(users);
+// 3. 全局配置接口
+app.get('/api/config', authMiddleware, async (req, res) => {
+    res.json(await getConfig());
 });
 
-// 4. 添加/修改用户
-app.post('/api/users', authMiddleware, async (req, res) => {
-    const { userId, audioUrl, initialTimes } = req.body;
-    
-    // 校验用户ID
-    if (!isValidUserId(userId)) {
-        return res.status(400).json({ success: false, message: '用户ID必须为2-8位字母或数字' });
-    }
+app.post('/api/config', authMiddleware, async (req, res) => {
+    const { apiToken } = req.body;
+    await saveConfig({ apiToken });
+    res.json({ success: true });
+});
 
-    if (!audioUrl) {
-        return res.status(400).json({ success: false, message: 'Missing audioUrl' });
-    }
+// 4. 用户列表
+app.get('/api/users', authMiddleware, async (req, res) => {
+    res.json(await getUsers());
+});
+
+// 5. 添加/修改用户
+app.post('/api/users', authMiddleware, async (req, res) => {
+    const { userId, fileId, initialTimes } = req.body;
+    if (!isValidUserId(userId)) return res.status(400).json({ success: false, message: '用户ID需为2-8位字母数字' });
+    if (!fileId) return res.status(400).json({ success: false, message: '请输入文件ID' });
 
     const users = await getUsers();
     const existingIndex = users.findIndex(u => u.userId === userId);
 
     if (existingIndex > -1) {
-        // 更新音频
-        users[existingIndex].audioUrl = audioUrl;
+        users[existingIndex].fileId = fileId;
     } else {
-        // 新增
         users.push({
             userId,
-            audioUrl,
+            fileId,
             remainingTimes: parseInt(initialTimes) || 0,
             usedTimes: 0,
             lastAccessTime: null,
@@ -143,26 +135,19 @@ app.post('/api/users', authMiddleware, async (req, res) => {
     res.json({ success: true });
 });
 
-// 5. 增加次数（充值）接口
+// 6. 充值
 app.post('/api/users/recharge', authMiddleware, async (req, res) => {
     const { userId, times } = req.body;
-    if (!userId || isNaN(times)) {
-        return res.status(400).json({ success: false, message: 'Invalid parameters' });
-    }
-
     const users = await getUsers();
     const userIndex = users.findIndex(u => u.userId === userId);
-
-    if (userIndex === -1) {
-        return res.status(404).json({ success: false, message: 'User not found' });
-    }
+    if (userIndex === -1) return res.status(404).json({ success: false, message: 'User not found' });
 
     users[userIndex].remainingTimes = (users[userIndex].remainingTimes || 0) + parseInt(times);
     await saveUsers(users);
     res.json({ success: true });
 });
 
-// 6. 删除用户
+// 7. 删除
 app.delete('/api/users/:userId', authMiddleware, async (req, res) => {
     const { userId } = req.params;
     let users = await getUsers();
@@ -171,9 +156,6 @@ app.delete('/api/users/:userId', authMiddleware, async (req, res) => {
     res.json({ success: true });
 });
 
-// 启动服务器
-ensureDataFile().then(() => {
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server is running on http://0.0.0.0:${PORT}`);
-    });
+initFiles().then(() => {
+    app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
 });
