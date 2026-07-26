@@ -14,6 +14,7 @@
         button:hover { background: #0056b3; }
         .config-section { background: #fff3e0; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ffe0b2; }
         .form-section { background: #f9f9f9; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #eee; }
+        .link-section { background: #e8f5e9; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #c8e6c9; }
         .form-inline { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
         .form-inline input { flex: 1; min-width: 150px; margin: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
@@ -26,6 +27,7 @@
         .btn-danger { background: #ff3b30; }
         .btn-success { background: #34c759; }
         .btn-info { background: #5856d6; }
+        .short-link { font-family: monospace; background: #f5f5f5; padding: 8px 12px; border-radius: 4px; word-break: break-all; }
         @media (max-width: 600px) { .form-inline { flex-direction: column; } .form-inline input { width: 100%; } }
     </style>
 </head>
@@ -43,11 +45,24 @@
         <div v-else>
             <h1>音频控制系统</h1>
 
+            <!-- 短链接说明 -->
+            <div class="link-section">
+                <strong>短链接使用说明</strong>
+                <p style="margin: 8px 0 4px; color: #555; font-size: 14px;">
+                    用户在苹果快捷指令中填写：
+                </p>
+                <div class="short-link">https://cq.imim.chat/apl/{用户ID}</div>
+                <p style="margin: 10px 0 0; color: #666; font-size: 13px;">
+                    示例：https://cq.imim.chat/apl/1004CQ<br>
+                    每次访问自动扣除 1 次，次数用完后将无法播放。
+                </p>
+            </div>
+
             <!-- 全局配置 -->
             <div class="config-section">
                 <strong>1. 全局 Token 配置</strong>
                 <div class="form-inline" style="margin-top:10px">
-                    <input v-model="config.apiToken" placeholder="输入 API Token">
+                    <input v-model="config.apiToken" placeholder="输入 API Token（主站生成的）">
                     <button @click="updateConfig" class="btn-sm">保存</button>
                 </div>
             </div>
@@ -57,7 +72,7 @@
                 <strong>2. {{ isEditing ? '修改用户' : '添加用户' }}</strong>
                 <div class="form-inline" style="margin-top:10px">
                     <div style="flex: 1; display: flex; gap: 5px;">
-                        <input v-model="newUser.userId" placeholder="用户ID" :disabled="isEditing">
+                        <input v-model="newUser.userId" placeholder="用户ID（2-8位字母数字）" :disabled="isEditing">
                         <button v-if="!isEditing" @click="generateId" class="btn-sm btn-info">随机ID</button>
                     </div>
                     <input v-model="newUser.fileId" placeholder="音频文件ID">
@@ -73,6 +88,7 @@
                     <thead>
                         <tr>
                             <th>用户ID</th>
+                            <th>短链接</th>
                             <th>剩余次数</th>
                             <th>已使用</th>
                             <th>音频文件ID</th>
@@ -83,6 +99,10 @@
                     <tbody>
                         <tr v-for="user in users" :key="user.userId">
                             <td><strong>{{ user.userId }}</strong></td>
+                            <td>
+                                <code style="font-size:12px">/apl/{{ user.userId }}</code>
+                                <button @click="copyLink(user.userId)" class="btn-sm" style="margin-left:6px;padding:2px 6px;">复制</button>
+                            </td>
                             <td><span class="badge badge-remaining">{{ user.remainingTimes }}</span></td>
                             <td><span class="badge badge-used">{{ user.usedTimes }}</span></td>
                             <td><code>{{ user.fileId }}</code></td>
@@ -174,6 +194,14 @@
                         await fetch(`/api/users/${id}`, { method: 'DELETE' });
                         this.fetchData();
                     }
+                },
+                copyLink(userId) {
+                    const link = `https://cq.imim.chat/apl/${userId}`;
+                    navigator.clipboard.writeText(link).then(() => {
+                        alert('已复制：' + link);
+                    }).catch(() => {
+                        prompt('复制以下链接：', link);
+                    });
                 },
                 formatDate(d) { return d ? new Date(d).toLocaleString() : '从未访问'; }
             }
