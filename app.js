@@ -40,16 +40,14 @@ function isValidUserId(userId) {
     return /^[a-zA-Z0-9]{2,8}$/.test(userId);
 }
 
-// --- 路由 ---
-
-// 1. 极简短链接重定向 (路径改为 /apl/:userId)
-app.get('/apl/:userId', async (req, res) => {
+// 统一的短链接处理逻辑
+async function handleShortLink(req, res) {
     try {
         const { userId } = req.params;
         const [users, config] = await Promise.all([getUsers(), getConfig()]);
         const userIndex = users.findIndex(u => u.userId === userId);
 
-        if (userIndex === -1) return res.status(404).send('User not found');
+        if (userIndex === -1) return res.status(404).send('用户不存在');
         const user = users[userIndex];
 
         // 检查次数
@@ -58,8 +56,8 @@ app.get('/apl/:userId', async (req, res) => {
         }
 
         // 检查配置
-        if (!user.fileId) return res.status(404).send('No fileId bound to this user');
-        if (!config.apiToken) return res.status(500).send('System API Token not configured');
+        if (!user.fileId) return res.status(404).send('该用户未绑定音频');
+        if (!config.apiToken) return res.status(500).send('系统 Token 未配置');
 
         // 扣费与统计
         user.remainingTimes -= 1;
@@ -72,9 +70,15 @@ app.get('/apl/:userId', async (req, res) => {
         res.redirect(longUrl);
     } catch (error) {
         console.error(error);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send('服务器内部错误');
     }
-});
+}
+
+// --- 路由 ---
+
+// 1. 短链接重定向（兼容两种路径）
+app.get('/apl/:userId', handleShortLink);
+app.get('/apl/gt/:userId', handleShortLink);  // 推荐使用这个路径
 
 // 2. 管理员登录
 app.post('/api/login', (req, res) => {
@@ -83,13 +87,13 @@ app.post('/api/login', (req, res) => {
         res.cookie('is_admin', 'true', { signed: true, httpOnly: true });
         res.json({ success: true });
     } else {
-        res.status(401).json({ success: false, message: 'Invalid credentials' });
+        res.status(401).json({ success: false, message: '账号或密码错误' });
     }
 });
 
 const authMiddleware = (req, res, next) => {
     if (req.signedCookies.is_admin === 'true') next();
-    else res.status(403).json({ success: false, message: 'Unauthorized' });
+    else res.status(403).json({ success: false, message: '未授权' });
 };
 
 // 3. 全局配置接口
@@ -111,15 +115,19 @@ app.get('/api/users', authMiddleware, async (req, res) => {
 // 5. 添加/修改用户
 app.post('/api/users', authMiddleware, async (req, res) => {
     const { userId, fileId, initialTimes } = req.body;
-    if (!isValidUserId(userId)) return res.status(400).json({ success: false, message: '用户ID需为2-8位字母数字' });
-    if (!fileId) return res.status(400).json({ success: false, message: '请输入文件ID' });
+    if (!isValidUserId(userId)) {
+        return res.status(400).json({ success: false, message: '用户ID需为2-8位字母或数字' });
+    }
+    if (!fileId) return res.status(400).json({ success: false, message: '请输入音频文件ID' });
 
     const users = await getUsers();
     const existingIndex = users.findIndex(u => u.userId === userId);
 
     if (existingIndex > -1) {
+        // 修改已有用户
         users[existingIndex].fileId = fileId;
     } else {
+        // 添加新用户
         users.push({
             userId,
             fileId,
@@ -134,19 +142,19 @@ app.post('/api/users', authMiddleware, async (req, res) => {
     res.json({ success: true });
 });
 
-// 6. 充值
+// 6. 充值次数
 app.post('/api/users/recharge', authMiddleware, async (req, res) => {
     const { userId, times } = req.body;
     const users = await getUsers();
     const userIndex = users.findIndex(u => u.userId === userId);
-    if (userIndex === -1) return res.status(404).json({ success: false, message: 'User not found' });
+    if (userIndex === -1) return res.status(404).json({ success: false, message: '用户不存在' });
 
     users[userIndex].remainingTimes = (users[userIndex].remainingTimes || 0) + parseInt(times);
     await saveUsers(users);
     res.json({ success: true });
 });
 
-// 7. 删除
+// 7. 删除用户
 app.delete('/api/users/:userId', authMiddleware, async (req, res) => {
     const { userId } = req.params;
     let users = await getUsers();
@@ -156,5 +164,8 @@ app.delete('/api/users/:userId', authMiddleware, async (req, res) => {
 });
 
 initFiles().then(() => {
-    app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log(`短链接格式: https://cq.imim.chat/apl/gt/{userId}`);
+    });
 });
