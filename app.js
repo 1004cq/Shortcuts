@@ -19,7 +19,7 @@ const ADMIN_CONFIG = {
 // 中间件配置
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser('secret_key_for_shortcuts_v3'));
+app.use(cookieParser('secret_key_for_shortcuts_v4'));
 app.use(express.static('public'));
 
 // 确保目录和文件存在
@@ -42,8 +42,8 @@ function isValidUserId(userId) {
 
 // --- 路由 ---
 
-// 1. 短链接重定向（核心逻辑：扣次 + 自动拼接长链接）
-app.get('/apl/gt/:userId', async (req, res) => {
+// 1. 极简短链接重定向 (路径改为 /apl/:userId)
+app.get('/apl/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
         const [users, config] = await Promise.all([getUsers(), getConfig()]);
@@ -68,7 +68,6 @@ app.get('/apl/gt/:userId', async (req, res) => {
         await saveUsers(users);
 
         // 自动拼接长链接并重定向
-        // 格式：https://cq.imim.chat/api/files/{fileId}/download?token={apiToken}
         const longUrl = `https://cq.imim.chat/api/files/${user.fileId}/download?token=${config.apiToken}`;
         res.redirect(longUrl);
     } catch (error) {
