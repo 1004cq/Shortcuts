@@ -5,7 +5,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3005;
 const DATA_FILE = path.join(__dirname, 'data', 'users.json');
 
 // 管理员账号密码
@@ -14,10 +14,13 @@ const ADMIN_CONFIG = {
     password: '123456'
 };
 
+// 计费配置
+const PLAY_COST = 0.01;
+
 // 中间件配置
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser('secret_key_for_shortcuts'));
+app.use(cookieParser('secret_key_for_shortcuts_billing'));
 app.use(express.static('public'));
 
 // 确保数据文件存在
@@ -39,7 +42,7 @@ async function saveUsers(users) {
 
 // --- 路由 ---
 
-// 1. 短链接重定向
+// 1. 短链接重定向（带计费逻辑）
 app.get('/apl/gt/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
@@ -51,12 +54,21 @@ app.get('/apl/gt/:userId', async (req, res) => {
         }
 
         const user = users[userIndex];
+        
+        // 检查余额
+        if (user.balance < PLAY_COST) {
+            return res.status(403).send('余额不足，请联系管理员充值');
+        }
+
         if (!user.audioUrl) {
             return res.status(404).send('No audio bound to this user');
         }
 
-        // 更新最后访问时间
+        // 扣费与统计 (原子更新)
+        user.balance = parseFloat((user.balance - PLAY_COST).toFixed(2));
+        user.totalPlays = (user.totalPlays || 0) + 1;
         user.lastAccessTime = new Date().toISOString();
+        
         await saveUsers(users);
 
         // 重定向到音频地址
@@ -95,7 +107,7 @@ app.get('/api/users', authMiddleware, async (req, res) => {
 
 // 4. 添加/修改用户
 app.post('/api/users', authMiddleware, async (req, res) => {
-    const { userId, audioUrl } = req.body;
+    const { userId, audioUrl, initialBalance } = req.body;
     if (!userId || !audioUrl) {
         return res.status(400).json({ success: false, message: 'Missing userId or audioUrl' });
     }
@@ -104,13 +116,15 @@ app.post('/api/users', authMiddleware, async (req, res) => {
     const existingIndex = users.findIndex(u => u.userId === userId);
 
     if (existingIndex > -1) {
-        // 更新
+        // 更新音频
         users[existingIndex].audioUrl = audioUrl;
     } else {
         // 新增
         users.push({
             userId,
             audioUrl,
+            balance: parseFloat(initialBalance) || 0,
+            totalPlays: 0,
             lastAccessTime: null,
             createdAt: new Date().toISOString()
         });
@@ -120,7 +134,26 @@ app.post('/api/users', authMiddleware, async (req, res) => {
     res.json({ success: true });
 });
 
-// 5. 删除用户
+// 5. 用户充值接口
+app.post('/api/users/recharge', authMiddleware, async (req, res) => {
+    const { userId, amount } = req.body;
+    if (!userId || isNaN(amount)) {
+        return res.status(400).json({ success: false, message: 'Invalid parameters' });
+    }
+
+    const users = await getUsers();
+    const userIndex = users.findIndex(u => u.userId === userId);
+
+    if (userIndex === -1) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    users[userIndex].balance = parseFloat((users[userIndex].balance + parseFloat(amount)).toFixed(2));
+    await saveUsers(users);
+    res.json({ success: true });
+});
+
+// 6. 删除用户
 app.delete('/api/users/:userId', authMiddleware, async (req, res) => {
     const { userId } = req.params;
     let users = await getUsers();
