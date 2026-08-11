@@ -13,7 +13,7 @@ import {
   withApiHandler,
 } from "@/lib/api";
 import {
-  buildPublicAplUrl,
+  buildPublicShortUrl,
   generateShortlinkUserId,
   SHORTLINK_USER_ID_REGEXP,
 } from "@/lib/shortlink";
@@ -114,7 +114,7 @@ async function serializeMany(docs: LeanShortlink[]) {
         : null,
       createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
       updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : null,
-      shortUrl: buildPublicAplUrl(doc.userId),
+      shortUrl: buildPublicShortUrl(doc.userId),
     };
   });
 }

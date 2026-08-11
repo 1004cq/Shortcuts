@@ -2,7 +2,7 @@ import mongoose, { Schema, models, model, type InferSchemaType } from "mongoose"
 
 /**
  * ShortlinkUser — per-user fixed Shortcuts URL with play-count billing.
- * Public URL: /apl/{userId} → deduct 1 → redirect to file download.
+ * Public URL: /api/{userId} → deduct 1 → redirect to file download.
  */
 const ShortlinkUserSchema = new Schema(
   {

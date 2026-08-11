@@ -12,12 +12,16 @@ import { getAppUrl } from "@/lib/utils";
 /** Shortlink public userId: 2–8 letters/digits */
 export const SHORTLINK_USER_ID_REGEXP = /^[a-zA-Z0-9]{2,8}$/;
 
-/** Fixed public origin for copyable APL URLs */
-export const PUBLIC_APL_ORIGIN = (
+/** Fixed public origin for copyable short URLs */
+export const PUBLIC_SHORTLINK_ORIGIN = (
+  process.env.PUBLIC_SHORTLINK_ORIGIN ||
   process.env.PUBLIC_APL_ORIGIN ||
   process.env.NEXTAUTH_URL ||
   "https://cq.imim.chat"
 ).replace(/\/$/, "");
+
+/** @deprecated use PUBLIC_SHORTLINK_ORIGIN */
+export const PUBLIC_APL_ORIGIN = PUBLIC_SHORTLINK_ORIGIN;
 
 export function isValidShortlinkUserId(userId: unknown): userId is string {
   return typeof userId === "string" && SHORTLINK_USER_ID_REGEXP.test(userId);
@@ -78,7 +82,7 @@ export async function ensureUniqueShortlinkUserId(preferred: string): Promise<st
 
 /**
  * If username/name is a valid free shortlink id and differs from current,
- * rename so /apl/{id} tracks the profile in realtime.
+ * rename so /api/{id} tracks the profile in realtime.
  */
 export async function syncShortlinkIdToProfile(
   doc: ShortlinkDoc,
@@ -111,17 +115,21 @@ export async function syncShortlinkIdToProfile(
 }
 
 /**
- * Absolute public short URL — always `https://cq.imim.chat/apl/{userId}`
- * unless PUBLIC_APL_ORIGIN / NEXTAUTH_URL overrides the origin.
+ * Absolute public short URL — `https://cq.imim.chat/api/{userId}`
  */
-export function buildPublicAplUrl(userId: string): string {
-  return `${PUBLIC_APL_ORIGIN}/apl/${userId}`;
+export function buildPublicShortUrl(userId: string): string {
+  return `${PUBLIC_SHORTLINK_ORIGIN}/api/${userId}`;
 }
 
-/** @deprecated Prefer buildPublicAplUrl for copyable links; kept for request-aware redirects */
+/** @deprecated use buildPublicShortUrl */
+export function buildPublicAplUrl(userId: string): string {
+  return buildPublicShortUrl(userId);
+}
+
+/** @deprecated Prefer buildPublicShortUrl for copyable links */
 export function buildAplUrl(userId: string, req?: Request): string {
   void req;
-  return buildPublicAplUrl(userId);
+  return buildPublicShortUrl(userId);
 }
 
 function resolveRequestBase(req?: Request): string {
@@ -142,7 +150,6 @@ function resolveRequestBase(req?: Request): string {
 /**
  * Each MediaVault user owns one shortlink row.
  * When username/name is a valid free id, short path stays in sync with profile.
- * Audio changes never alter the short path by themselves.
  */
 export async function ensureShortlinkForMediaVaultUser(params: {
   mediaVaultUserId: string;

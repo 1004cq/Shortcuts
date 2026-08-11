@@ -63,7 +63,7 @@ export async function middleware(req: NextRequest) {
 }
 
 // Protect dashboard / admin HTML routes at the edge.
-// API routes (/api/*, /s/*, /apl/*, /l/*) are not matched — public or token auth.
+// Public short links (/api/*, legacy /apl/*) and token routes are not matched.
 export const config = {
   matcher: [
     "/",

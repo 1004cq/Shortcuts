@@ -45,7 +45,7 @@ type ShortlinkInfo = {
   shortUrl: string;
 };
 
-const FIXED_APL = (userId: string) => `https://cq.imim.chat/apl/${userId}`;
+const FIXED_SHORT_URL = (userId: string) => `https://cq.imim.chat/api/${userId}`;
 const USER_ID_RE = /^[a-zA-Z0-9]{2,8}$/;
 
 type UserRow = {
@@ -293,7 +293,7 @@ export default function AdminUsersPage() {
       if (
         nextId !== editing.shortlink.userId &&
         !window.confirm(
-          `将短链接改为\n${FIXED_APL(nextId)}\n？\n旧链接将立即失效。`
+          `将短链接改为\n${FIXED_SHORT_URL(nextId)}\n？\n旧链接将立即失效。`
         )
       ) {
         return;
@@ -346,7 +346,7 @@ export default function AdminUsersPage() {
       flash("短链接尚未就绪");
       return;
     }
-    const url = FIXED_APL(id);
+    const url = FIXED_SHORT_URL(id);
     const ok = await copyToClipboard(url);
     flash(ok ? `已复制：${url}` : "请手动复制短链接");
   };
@@ -411,7 +411,7 @@ export default function AdminUsersPage() {
     <AdminShell title="用户管理">
       <p className="mb-3 text-xs text-slate-400">
         用户与短链接合一展示；昵称/用户名为 2-8 位字母数字时，短链会自动同步为该值
-        <code className="mx-1 text-slate-300">https://cq.imim.chat/apl/&#123;userId&#125;</code>
+        <code className="mx-1 text-slate-300">https://cq.imim.chat/api/&#123;userId&#125;</code>
         ，可在此复制、选音频、改剩余次数。管理员请到「系统设置」。
       </p>
       <div className="mb-4 flex flex-wrap gap-2">
@@ -460,7 +460,7 @@ export default function AdminUsersPage() {
                       {u.shortlink ? (
                         <div className="flex items-center gap-1 rounded-lg border border-sky-500/20 bg-sky-500/5 px-2 py-1.5">
                           <code className="min-w-0 flex-1 truncate text-[11px] text-sky-300">
-                            {FIXED_APL(u.shortlink.userId)}
+                            {FIXED_SHORT_URL(u.shortlink.userId)}
                           </code>
                           <Button
                             size="icon"
@@ -782,7 +782,7 @@ export default function AdminUsersPage() {
                 {editing.shortlink ? (
                   <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-300">
                     <p className="break-all font-mono text-sm text-sky-300">
-                      {FIXED_APL(
+                      {FIXED_SHORT_URL(
                         USER_ID_RE.test(slUserId.trim())
                           ? slUserId.trim()
                           : editing.shortlink.userId
@@ -828,7 +828,7 @@ export default function AdminUsersPage() {
                     </Button>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    完整链接：https://cq.imim.chat/apl/&#123;ID&#125; · 修改后旧链接立即失效
+                    完整链接：https://cq.imim.chat/api/&#123;ID&#125; · 修改后旧链接立即失效
                   </p>
                 </div>
 

@@ -23,7 +23,7 @@ import {
   usernameSchema,
 } from "@/lib/user-profile";
 import {
-  buildPublicAplUrl,
+  buildPublicShortUrl,
   ensureShortlinkForMediaVaultUser,
 } from "@/lib/shortlink";
 
@@ -109,7 +109,7 @@ export const GET = withApiHandler(async (req: Request) => {
         lastAccessTime: sl.lastAccessTime
           ? new Date(sl.lastAccessTime).toISOString()
           : null,
-        shortUrl: buildPublicAplUrl(sl.userId),
+        shortUrl: buildPublicShortUrl(sl.userId),
       },
     };
   });
@@ -243,7 +243,7 @@ export const PATCH = withApiHandler(async (req: Request) => {
     throw err;
   }
 
-  // Keep /apl/{id} in sync when nickname/username is a valid short id
+  // Keep /api/{id} in sync when nickname/username is a valid short id
   await ensureShortlinkForMediaVaultUser({
     mediaVaultUserId: String(user._id),
     username: user.username,
