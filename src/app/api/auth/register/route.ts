@@ -52,6 +52,7 @@ export const POST = withApiHandler(async (req: Request) => {
   await ensureShortlinkForMediaVaultUser({
     mediaVaultUserId: String(created._id),
     username: created.username,
+    name: created.name,
   });
 
   const mail = await sendVerificationEmail(email.toLowerCase(), token);

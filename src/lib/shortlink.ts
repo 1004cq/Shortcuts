@@ -2,7 +2,9 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { FileModel } from "@/models/File";
-import { ShortlinkUser, type ShortlinkUserDocument } from "@/models/ShortlinkUser";
+import { ShortlinkUser } from "@/models/ShortlinkUser";
+
+type ShortlinkDoc = InstanceType<typeof ShortlinkUser>;
 import { ApiError } from "@/lib/api";
 import { ensureUserApiToken } from "@/lib/token-auth";
 import { getAppUrl } from "@/lib/utils";
@@ -39,11 +41,24 @@ export function generateShortlinkUserId(existing: Iterable<string> = []): string
   return `u${Date.now().toString(36)}`.slice(0, 8);
 }
 
-/** Prefer username when it matches shortlink userId rules */
-export function preferShortlinkUserIdFromUsername(username?: string | null): string {
-  const raw = String(username || "").trim();
-  if (SHORTLINK_USER_ID_REGEXP.test(raw)) return raw;
+/**
+ * Prefer profile fields that already look like a shortlink id:
+ * username first, then display name (e.g. "cq").
+ */
+export function preferShortlinkUserIdFromProfile(opts: {
+  username?: string | null;
+  name?: string | null;
+}): string {
+  for (const raw of [opts.username, opts.name]) {
+    const v = String(raw || "").trim();
+    if (SHORTLINK_USER_ID_REGEXP.test(v)) return v;
+  }
   return generateShortlinkUserId();
+}
+
+/** @deprecated use preferShortlinkUserIdFromProfile */
+export function preferShortlinkUserIdFromUsername(username?: string | null): string {
+  return preferShortlinkUserIdFromProfile({ username });
 }
 
 export async function ensureUniqueShortlinkUserId(preferred: string): Promise<string> {
@@ -62,6 +77,40 @@ export async function ensureUniqueShortlinkUserId(preferred: string): Promise<st
 }
 
 /**
+ * If username/name is a valid free shortlink id and differs from current,
+ * rename so /apl/{id} tracks the profile in realtime.
+ */
+export async function syncShortlinkIdToProfile(
+  doc: ShortlinkDoc,
+  opts: { username?: string | null; name?: string | null }
+): Promise<ShortlinkDoc> {
+  const preferred = preferShortlinkUserIdFromProfile(opts);
+  // Only auto-sync when preferred came from a real profile field (not random)
+  const fromProfile = [opts.username, opts.name].some((raw) => {
+    const v = String(raw || "").trim();
+    return SHORTLINK_USER_ID_REGEXP.test(v) && v === preferred;
+  });
+  if (!fromProfile) return doc;
+  if (doc.userId === preferred) return doc;
+
+  const clash = await ShortlinkUser.findOne({
+    userId: preferred,
+    _id: { $ne: doc._id },
+  }).lean();
+  if (clash) return doc;
+
+  doc.userId = preferred;
+  try {
+    await doc.save();
+  } catch (err) {
+    const code = (err as { code?: number }).code;
+    if (code === 11000) return doc;
+    throw err;
+  }
+  return doc;
+}
+
+/**
  * Absolute public short URL — always `https://cq.imim.chat/apl/{userId}`
  * unless PUBLIC_APL_ORIGIN / NEXTAUTH_URL overrides the origin.
  */
@@ -71,7 +120,6 @@ export function buildPublicAplUrl(userId: string): string {
 
 /** @deprecated Prefer buildPublicAplUrl for copyable links; kept for request-aware redirects */
 export function buildAplUrl(userId: string, req?: Request): string {
-  // Copyable / displayed links must stay fixed to the public APL origin.
   void req;
   return buildPublicAplUrl(userId);
 }
@@ -92,23 +140,33 @@ function resolveRequestBase(req?: Request): string {
 }
 
 /**
- * Each MediaVault user permanently owns one shortlink row.
- * userId never changes when audio is swapped.
+ * Each MediaVault user owns one shortlink row.
+ * When username/name is a valid free id, short path stays in sync with profile.
+ * Audio changes never alter the short path by themselves.
  */
 export async function ensureShortlinkForMediaVaultUser(params: {
   mediaVaultUserId: string;
   username?: string | null;
+  name?: string | null;
   remainingTimes?: number;
-}): Promise<ShortlinkUserDocument> {
+}): Promise<ShortlinkDoc> {
   if (!mongoose.Types.ObjectId.isValid(params.mediaVaultUserId)) {
     throw new ApiError("无效的用户 ID", 400);
   }
 
   const linkedUserId = new mongoose.Types.ObjectId(params.mediaVaultUserId);
   const existing = await ShortlinkUser.findOne({ linkedUserId });
-  if (existing) return existing as ShortlinkUserDocument;
+  if (existing) {
+    return syncShortlinkIdToProfile(existing as ShortlinkDoc, {
+      username: params.username,
+      name: params.name,
+    });
+  }
 
-  const preferred = preferShortlinkUserIdFromUsername(params.username);
+  const preferred = preferShortlinkUserIdFromProfile({
+    username: params.username,
+    name: params.name,
+  });
   const userId = await ensureUniqueShortlinkUserId(preferred);
   const remainingTimes =
     typeof params.remainingTimes === "number" && Number.isFinite(params.remainingTimes)
@@ -124,10 +182,15 @@ export async function ensureShortlinkForMediaVaultUser(params: {
       usedTimes: 0,
       lastAccessTime: null,
     });
-    return created as ShortlinkUserDocument;
+    return created as ShortlinkDoc;
   } catch (error: unknown) {
     const again = await ShortlinkUser.findOne({ linkedUserId });
-    if (again) return again as ShortlinkUserDocument;
+    if (again) {
+      return syncShortlinkIdToProfile(again as ShortlinkDoc, {
+        username: params.username,
+        name: params.name,
+      });
+    }
     throw error;
   }
 }

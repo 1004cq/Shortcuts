@@ -70,6 +70,7 @@ export const GET = withApiHandler(async (req: Request) => {
       ensureShortlinkForMediaVaultUser({
         mediaVaultUserId: String(u._id),
         username: (u as { username?: string | null }).username,
+        name: (u as { name?: string | null }).name,
       })
     )
   );
@@ -241,6 +242,13 @@ export const PATCH = withApiHandler(async (req: Request) => {
     }
     throw err;
   }
+
+  // Keep /apl/{id} in sync when nickname/username is a valid short id
+  await ensureShortlinkForMediaVaultUser({
+    mediaVaultUserId: String(user._id),
+    username: user.username,
+    name: user.name,
+  });
 
   return jsonOk({ item: user });
 });

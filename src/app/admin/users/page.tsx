@@ -410,7 +410,7 @@ export default function AdminUsersPage() {
   return (
     <AdminShell title="用户管理">
       <p className="mb-3 text-xs text-slate-400">
-        每位用户自动拥有短链接（管理员可手动修改 ID）
+        用户与短链接合一展示；昵称/用户名为 2-8 位字母数字时，短链会自动同步为该值
         <code className="mx-1 text-slate-300">https://cq.imim.chat/apl/&#123;userId&#125;</code>
         ，可在此复制、选音频、改剩余次数。管理员请到「系统设置」。
       </p>
@@ -438,11 +438,10 @@ export default function AdminUsersPage() {
           <Table>
             <TableHeader>
               <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-400">用户</TableHead>
-                <TableHead className="text-slate-400">短链接</TableHead>
-                <TableHead className="text-slate-400">音频</TableHead>
-                <TableHead className="text-slate-400">次数</TableHead>
-                <TableHead className="text-slate-400">角色 / 会员</TableHead>
+                <TableHead className="text-slate-400">用户 / 短链接</TableHead>
+                <TableHead className="hidden text-slate-400 sm:table-cell">音频</TableHead>
+                <TableHead className="hidden text-slate-400 sm:table-cell">次数</TableHead>
+                <TableHead className="text-slate-400">角色</TableHead>
                 <TableHead className="text-right text-slate-400">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -450,35 +449,47 @@ export default function AdminUsersPage() {
               {items.map((u) => (
                 <TableRow key={u._id} className="border-slate-800">
                   <TableCell>
-                    <div>
-                      <p className="font-medium text-slate-100">{u.name}</p>
-                      <p className="text-xs text-slate-500">{u.email}</p>
-                      <p className="text-xs text-slate-600">
-                        {u.phone || "—"} · @{u.username || "未设置"}
-                      </p>
+                    <div className="min-w-[11rem] space-y-1.5">
+                      <div>
+                        <p className="font-medium text-slate-100">{u.name}</p>
+                        <p className="text-xs text-slate-500">{u.email}</p>
+                        <p className="text-xs text-slate-600">
+                          {u.phone || "—"} · @{u.username || "未设置"}
+                        </p>
+                      </div>
+                      {u.shortlink ? (
+                        <div className="flex items-center gap-1 rounded-lg border border-sky-500/20 bg-sky-500/5 px-2 py-1.5">
+                          <code className="min-w-0 flex-1 truncate text-[11px] text-sky-300">
+                            {FIXED_APL(u.shortlink.userId)}
+                          </code>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 shrink-0"
+                            title="复制短链接"
+                            onClick={() => copyAplLink(u.shortlink)}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-500">短链接分配中…</span>
+                      )}
+                      {/* Mobile: show audio + counts under user */}
+                      <div className="space-y-0.5 text-[11px] text-slate-500 sm:hidden">
+                        <p>
+                          音频：
+                          {u.shortlink?.fileName ||
+                            (u.shortlink?.fileId ? "文件缺失" : "未绑定")}
+                        </p>
+                        <p>
+                          剩余 {u.shortlink?.remainingTimes ?? "—"} · 已用{" "}
+                          {u.shortlink?.usedTimes ?? "—"}
+                        </p>
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    {u.shortlink ? (
-                      <div className="flex max-w-[240px] items-center gap-1">
-                        <code className="truncate text-[11px] text-sky-300">
-                          {FIXED_APL(u.shortlink.userId)}
-                        </code>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 shrink-0"
-                          title="复制短链接"
-                          onClick={() => copyAplLink(u.shortlink)}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-500">分配中…</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {u.shortlink ? (
                       <div className="max-w-[140px]">
                         <p className="truncate text-sm text-slate-200">
@@ -490,7 +501,7 @@ export default function AdminUsersPage() {
                       "—"
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {u.shortlink ? (
                       <div className="space-y-1 text-xs">
                         <div>
