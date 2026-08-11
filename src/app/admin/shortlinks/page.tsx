@@ -231,14 +231,22 @@ export default function AdminShortlinksPage() {
       }
 
       if (editing) {
-        if (newUserId.trim() !== editing.userId) {
-          throw new Error("已创建的短链接 userId 不可更改；请删除后重建");
+        if (
+          newUserId.trim() !== editing.userId &&
+          !window.confirm(
+            `将短链接改为 https://cq.imim.chat/apl/${newUserId.trim()} ？\n旧链接将立即失效。`
+          )
+        ) {
+          return;
         }
         const res = await fetch("/api/admin/shortlinks", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: editing.userId,
+            ...(newUserId.trim() !== editing.userId
+              ? { newUserId: newUserId.trim() }
+              : {}),
             fileId: selectedAudio._id,
             remainingTimes: times,
             linkedUserId,
@@ -613,22 +621,20 @@ export default function AdminShortlinksPage() {
                         placeholder="2-8位字母数字"
                         maxLength={8}
                         required
-                        disabled={Boolean(editing)}
+                        disabled={false}
                       />
-                      {!editing && (
-                        <Button type="button" variant="outline" onClick={randomId}>
-                          随机
-                        </Button>
-                      )}
+                      <Button type="button" variant="outline" onClick={randomId}>
+                        随机
+                      </Button>
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      选择会员后若用户名符合规则，会自动填入为 userId。
+                      可手动修改短链接 ID；修改后旧链接立即失效。
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <Label>用户ID</Label>
+                  <Label>用户ID（可手动修改）</Label>
                   <div className="flex gap-2">
                     <Input
                       value={newUserId}
@@ -636,13 +642,11 @@ export default function AdminShortlinksPage() {
                       placeholder="例如 demo01"
                       maxLength={8}
                       required
-                      disabled={Boolean(editing)}
+                      disabled={false}
                     />
-                    {!editing && (
-                      <Button type="button" variant="outline" onClick={randomId}>
-                        随机
-                      </Button>
-                    )}
+                    <Button type="button" variant="outline" onClick={randomId}>
+                      随机
+                    </Button>
                   </div>
                 </div>
               )}

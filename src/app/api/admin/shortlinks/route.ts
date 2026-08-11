@@ -212,7 +212,10 @@ export const POST = withApiHandler(async (req: Request) => {
 
 const patchSchema = z
   .object({
+    /** Current shortlink userId (lookup key) */
     userId: userIdSchema,
+    /** Optional rename — admin can manually change the public short path */
+    newUserId: userIdSchema.optional(),
     fileId: z.string().min(1).optional(),
     addTimes: z.coerce.number().int().positive().optional(),
     /** Absolute remaining times (set) */
@@ -221,6 +224,7 @@ const patchSchema = z
   })
   .refine(
     (v) =>
+      v.newUserId !== undefined ||
       v.fileId !== undefined ||
       v.addTimes !== undefined ||
       v.remainingTimes !== undefined ||
@@ -237,6 +241,14 @@ export const PATCH = withApiHandler(async (req: Request) => {
   const doc = await ShortlinkUser.findOne({ userId: body.userId });
   if (!doc) {
     throw new ApiError("用户不存在", 404);
+  }
+
+  if (body.newUserId !== undefined && body.newUserId !== doc.userId) {
+    const taken = await ShortlinkUser.exists({ userId: body.newUserId });
+    if (taken) {
+      throw new ApiError("该短链接 ID 已被占用", 409);
+    }
+    doc.userId = body.newUserId;
   }
 
   if (body.fileId !== undefined) {
@@ -262,7 +274,16 @@ export const PATCH = withApiHandler(async (req: Request) => {
     doc.linkedUserId = linked?._id ?? null;
   }
 
-  await doc.save();
+  try {
+    await doc.save();
+  } catch (err) {
+    const code = (err as { code?: number }).code;
+    if (code === 11000) {
+      throw new ApiError("该短链接 ID 已被占用", 409);
+    }
+    throw err;
+  }
+
   return jsonOk({
     item: await serializeOne(doc.toObject() as LeanShortlink),
   });

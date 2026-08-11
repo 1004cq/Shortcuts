@@ -46,6 +46,7 @@ type ShortlinkInfo = {
 };
 
 const FIXED_APL = (userId: string) => `https://cq.imim.chat/apl/${userId}`;
+const USER_ID_RE = /^[a-zA-Z0-9]{2,8}$/;
 
 type UserRow = {
   _id: string;
@@ -104,6 +105,7 @@ export default function AdminUsersPage() {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   // Shortlink form state (inside edit dialog)
+  const [slUserId, setSlUserId] = React.useState("");
   const [slAudio, setSlAudio] = React.useState<AudioFileOption | null>(null);
   const [slTimes, setSlTimes] = React.useState("10");
   const [slSaving, setSlSaving] = React.useState(false);
@@ -144,6 +146,7 @@ export default function AdminUsersPage() {
   };
 
   const syncShortlinkForm = (u: UserRow) => {
+    setSlUserId(u.shortlink?.userId || "");
     if (u.shortlink?.fileId) {
       setSlAudio({
         _id: u.shortlink.fileId,
@@ -154,6 +157,12 @@ export default function AdminUsersPage() {
     }
     setSlTimes(String(u.shortlink?.remainingTimes ?? 10));
     setSlError("");
+  };
+
+  const randomShortId = async () => {
+    const res = await fetch("/api/admin/shortlinks?action=random-id");
+    const data = await res.json();
+    if (res.ok && data.userId) setSlUserId(data.userId);
   };
 
   const openEdit = (u: UserRow) => {
@@ -264,7 +273,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  /** Update bound audio + remaining times (shortlink userId is permanent) */
+  /** Update shortlink path / audio / remaining times */
   const saveShortlink = async () => {
     if (!editing?.shortlink) {
       setSlError("短链接尚未就绪，请刷新后重试");
@@ -273,15 +282,31 @@ export default function AdminUsersPage() {
     setSlSaving(true);
     setSlError("");
     try {
+      const nextId = slUserId.trim();
+      if (!USER_ID_RE.test(nextId)) {
+        throw new Error("短链接 ID 需为 2-8 位字母或数字");
+      }
       const times = Number(slTimes);
       if (!Number.isFinite(times) || times < 0) {
         throw new Error("次数无效");
       }
+      if (
+        nextId !== editing.shortlink.userId &&
+        !window.confirm(
+          `将短链接改为\n${FIXED_APL(nextId)}\n？\n旧链接将立即失效。`
+        )
+      ) {
+        return;
+      }
+
       const payload: Record<string, unknown> = {
         userId: editing.shortlink.userId,
         remainingTimes: times,
         linkedUserId: editing._id,
       };
+      if (nextId !== editing.shortlink.userId) {
+        payload.newUserId = nextId;
+      }
       if (slAudio?._id) {
         payload.fileId = slAudio._id;
       }
@@ -312,12 +337,16 @@ export default function AdminUsersPage() {
     }
   };
 
-  const copyAplLink = async (shortlink: ShortlinkInfo | null | undefined) => {
-    if (!shortlink?.userId) {
+  const copyAplLink = async (
+    shortlink: ShortlinkInfo | null | undefined,
+    overrideId?: string
+  ) => {
+    const id = (overrideId || shortlink?.userId || "").trim();
+    if (!id) {
       flash("短链接尚未就绪");
       return;
     }
-    const url = FIXED_APL(shortlink.userId);
+    const url = FIXED_APL(id);
     const ok = await copyToClipboard(url);
     flash(ok ? `已复制：${url}` : "请手动复制短链接");
   };
@@ -381,7 +410,7 @@ export default function AdminUsersPage() {
   return (
     <AdminShell title="用户管理">
       <p className="mb-3 text-xs text-slate-400">
-        每位用户自动拥有固定短链接
+        每位用户自动拥有短链接（管理员可手动修改 ID）
         <code className="mx-1 text-slate-300">https://cq.imim.chat/apl/&#123;userId&#125;</code>
         ，可在此复制、选音频、改剩余次数。管理员请到「系统设置」。
       </p>
@@ -711,12 +740,12 @@ export default function AdminUsersPage() {
                 </div>
               </form>
 
-              {/* Shortlink section — always allocated, permanent userId */}
+              {/* Shortlink section — auto-allocated; admin can rename path */}
               <div className="space-y-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="flex items-center gap-2 text-sm font-semibold text-sky-200">
                     <Link2 className="h-4 w-4" />
-                    短链接（永久绑定）
+                    短链接管理
                   </h3>
                   {editing.shortlink && (
                     <Button
@@ -724,7 +753,14 @@ export default function AdminUsersPage() {
                       size="sm"
                       variant="outline"
                       className="min-h-10"
-                      onClick={() => copyAplLink(editing.shortlink)}
+                      onClick={() =>
+                        copyAplLink(
+                          editing.shortlink,
+                          USER_ID_RE.test(slUserId.trim())
+                            ? slUserId.trim()
+                            : undefined
+                        )
+                      }
                     >
                       <Copy className="mr-1 h-3.5 w-3.5" />
                       一键复制
@@ -735,11 +771,14 @@ export default function AdminUsersPage() {
                 {editing.shortlink ? (
                   <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-300">
                     <p className="break-all font-mono text-sm text-sky-300">
-                      {FIXED_APL(editing.shortlink.userId)}
+                      {FIXED_APL(
+                        USER_ID_RE.test(slUserId.trim())
+                          ? slUserId.trim()
+                          : editing.shortlink.userId
+                      )}
                     </p>
                     <p className="mt-1 text-slate-500">
-                      ID {editing.shortlink.userId} · 剩余{" "}
-                      {editing.shortlink.remainingTimes} · 已用{" "}
+                      剩余 {editing.shortlink.remainingTimes} · 已用{" "}
                       {editing.shortlink.usedTimes} · 最后访问{" "}
                       {editing.shortlink.lastAccessTime
                         ? format(
@@ -757,6 +796,30 @@ export default function AdminUsersPage() {
                 ) : (
                   <p className="text-sm text-slate-400">短链接分配中，请关闭后重新打开。</p>
                 )}
+
+                <div className="space-y-1.5">
+                  <Label>短链接 ID（2-8 位字母数字，可手动修改）</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={slUserId}
+                      onChange={(e) => setSlUserId(e.target.value)}
+                      maxLength={8}
+                      className="border-slate-700 bg-slate-900 font-mono"
+                      placeholder="例如 a1b2"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => void randomShortId()}
+                    >
+                      随机
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    完整链接：https://cq.imim.chat/apl/&#123;ID&#125; · 修改后旧链接立即失效
+                  </p>
+                </div>
 
                 <div className="space-y-1.5">
                   <Label>选择音频（从已上传列表）</Label>
@@ -787,7 +850,7 @@ export default function AdminUsersPage() {
                   ) : (
                     <Link2 className="mr-2 h-4 w-4" />
                   )}
-                  保存音频与次数
+                  保存短链接
                 </Button>
               </div>
 
