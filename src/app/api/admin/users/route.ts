@@ -22,7 +22,10 @@ import {
   phoneSchema,
   usernameSchema,
 } from "@/lib/user-profile";
-import { buildAplUrl } from "@/lib/shortlink";
+import {
+  buildPublicAplUrl,
+  ensureShortlinkForMediaVaultUser,
+} from "@/lib/shortlink";
 
 const passwordSchema = z
   .string()
@@ -61,12 +64,22 @@ export const GET = withApiHandler(async (req: Request) => {
     User.countDocuments(filter),
   ]);
 
-  const userIds = items.map((u) => u._id);
-  const shortlinks = userIds.length
-    ? await ShortlinkUser.find({ linkedUserId: { $in: userIds } }).lean()
-    : [];
+  // Ensure every listed user has a permanent shortlink binding
+  const shortlinks = await Promise.all(
+    items.map((u) =>
+      ensureShortlinkForMediaVaultUser({
+        mediaVaultUserId: String(u._id),
+        username: (u as { username?: string | null }).username,
+      })
+    )
+  );
+
   const fileIds = Array.from(
-    new Set(shortlinks.map((s) => String(s.fileId)).filter(Boolean))
+    new Set(
+      shortlinks
+        .map((s) => (s.fileId ? String(s.fileId) : ""))
+        .filter(Boolean)
+    )
   );
   const files = fileIds.length
     ? await FileModel.find({ _id: { $in: fileIds } })
@@ -83,19 +96,19 @@ export const GET = withApiHandler(async (req: Request) => {
     if (!sl) {
       return { ...u, shortlink: null };
     }
-    const file = fileMap.get(String(sl.fileId));
+    const file = sl.fileId ? fileMap.get(String(sl.fileId)) : null;
     return {
       ...u,
       shortlink: {
         userId: sl.userId,
-        fileId: String(sl.fileId),
+        fileId: sl.fileId ? String(sl.fileId) : null,
         fileName: file?.name || file?.originalName || null,
         remainingTimes: Number(sl.remainingTimes) || 0,
         usedTimes: Number(sl.usedTimes) || 0,
         lastAccessTime: sl.lastAccessTime
           ? new Date(sl.lastAccessTime).toISOString()
           : null,
-        shortUrl: buildAplUrl(sl.userId, req),
+        shortUrl: buildPublicAplUrl(sl.userId),
       },
     };
   });

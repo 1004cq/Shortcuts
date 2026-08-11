@@ -7,6 +7,7 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { sendVerificationEmail } from "@/lib/email";
 import { jsonError, jsonOk, withApiHandler } from "@/lib/api";
+import { ensureShortlinkForMediaVaultUser } from "@/lib/shortlink";
 
 const registerSchema = z.object({
   name: z.string().trim().min(1, "请填写昵称").max(80),
@@ -37,7 +38,7 @@ export const POST = withApiHandler(async (req: Request) => {
   const hash = await bcrypt.hash(password, 12);
   const token = nanoid(32);
 
-  await User.create({
+  const created = await User.create({
     name,
     email: email.toLowerCase(),
     password: hash,
@@ -46,6 +47,11 @@ export const POST = withApiHandler(async (req: Request) => {
     emailVerified: false,
     emailVerificationToken: token,
     emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  });
+
+  await ensureShortlinkForMediaVaultUser({
+    mediaVaultUserId: String(created._id),
+    username: created.username,
   });
 
   const mail = await sendVerificationEmail(email.toLowerCase(), token);

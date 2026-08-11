@@ -17,14 +17,14 @@ const ShortlinkUserSchema = new Schema(
       match: /^[a-zA-Z0-9]{2,8}$/,
       index: true,
     },
-    /** MediaVault File ObjectId (audio binding) */
+    /** MediaVault File ObjectId (audio binding) — optional until admin picks audio */
     fileId: {
       type: Schema.Types.ObjectId,
       ref: "File",
-      required: true,
+      default: null,
       index: true,
     },
-    /** One-to-one link to a MediaVault account (required for users-module binding) */
+    /** One-to-one link to a MediaVault account */
     linkedUserId: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -34,7 +34,7 @@ const ShortlinkUserSchema = new Schema(
     remainingTimes: {
       type: Number,
       required: true,
-      default: 0,
+      default: 10,
       min: 0,
     },
     usedTimes: {

@@ -13,7 +13,7 @@ import {
   withApiHandler,
 } from "@/lib/api";
 import {
-  buildAplUrl,
+  buildPublicAplUrl,
   generateShortlinkUserId,
   SHORTLINK_USER_ID_REGEXP,
 } from "@/lib/shortlink";
@@ -52,7 +52,7 @@ async function assertLinkedUser(linkedUserId: string | null | undefined) {
 type LeanShortlink = {
   _id: mongoose.Types.ObjectId;
   userId: string;
-  fileId: mongoose.Types.ObjectId;
+  fileId?: mongoose.Types.ObjectId | null;
   linkedUserId?: mongoose.Types.ObjectId | null;
   remainingTimes?: number;
   usedTimes?: number;
@@ -63,7 +63,9 @@ type LeanShortlink = {
 
 async function serializeMany(docs: LeanShortlink[], req: Request) {
   const fileIds = Array.from(
-    new Set(docs.map((d) => String(d.fileId)).filter(Boolean))
+    new Set(
+      docs.map((d) => (d.fileId ? String(d.fileId) : "")).filter(Boolean)
+    )
   );
   const linkedIds = Array.from(
     new Set(
@@ -90,14 +92,14 @@ async function serializeMany(docs: LeanShortlink[], req: Request) {
   const userMap = new Map(users.map((u) => [String(u._id), u]));
 
   return docs.map((doc) => {
-    const file = fileMap.get(String(doc.fileId));
+    const file = doc.fileId ? fileMap.get(String(doc.fileId)) : null;
     const linked = doc.linkedUserId
       ? userMap.get(String(doc.linkedUserId))
       : null;
     return {
       _id: String(doc._id),
       userId: doc.userId,
-      fileId: String(doc.fileId),
+      fileId: doc.fileId ? String(doc.fileId) : null,
       fileName: file?.name || file?.originalName || null,
       fileOriginalName: file?.originalName || null,
       fileCategory: file?.category || null,
@@ -112,7 +114,7 @@ async function serializeMany(docs: LeanShortlink[], req: Request) {
         : null,
       createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
       updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : null,
-      shortUrl: buildAplUrl(doc.userId, req),
+      shortUrl: buildPublicAplUrl(doc.userId),
     };
   });
 }
@@ -166,8 +168,8 @@ export const GET = withApiHandler(async (req: Request) => {
 
 const createSchema = z.object({
   userId: userIdSchema,
-  fileId: z.string().min(1, "请选择音频文件"),
-  remainingTimes: z.coerce.number().int().min(0).default(0),
+  fileId: z.string().min(1).nullable().optional(),
+  remainingTimes: z.coerce.number().int().min(0).default(10),
   linkedUserId: z.string().nullable().optional(),
 });
 
@@ -177,7 +179,9 @@ export const POST = withApiHandler(async (req: Request) => {
   await connectDB();
 
   const body = createSchema.parse(await req.json());
-  await assertFileExists(body.fileId);
+  if (body.fileId) {
+    await assertFileExists(body.fileId);
+  }
   const linked = await assertLinkedUser(body.linkedUserId ?? null);
 
   if (linked) {
@@ -194,7 +198,7 @@ export const POST = withApiHandler(async (req: Request) => {
 
   const created = await ShortlinkUser.create({
     userId: body.userId,
-    fileId: body.fileId,
+    fileId: body.fileId || null,
     linkedUserId: linked?._id ?? null,
     remainingTimes: body.remainingTimes,
     usedTimes: 0,

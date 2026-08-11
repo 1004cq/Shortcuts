@@ -13,7 +13,7 @@ type Ctx = { params: { userId: string } };
 /**
  * GET /apl/:userId
  * Fixed per-user Shortcuts short link with play-count billing.
- * Flow: find user → check remaining → deduct 1 → 302 to file download URL.
+ * Flow: find user → require audio → check remaining → deduct 1 → 302 to download.
  */
 export async function GET(req: Request, ctx: Ctx) {
   try {
@@ -28,9 +28,24 @@ export async function GET(req: Request, ctx: Ctx) {
 
     await connectDB();
 
-    // Atomic deduct when remainingTimes >= 1
+    const doc = await ShortlinkUser.findOne({ userId }).lean();
+    if (!doc) {
+      return new NextResponse("用户不存在", {
+        status: 404,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
+
+    if (!doc.fileId) {
+      return new NextResponse("该用户未绑定音频", {
+        status: 404,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
+
+    // Atomic deduct when remainingTimes >= 1 (and still has audio)
     const updated = await ShortlinkUser.findOneAndUpdate(
-      { userId, remainingTimes: { $gte: 1 } },
+      { userId, fileId: { $ne: null }, remainingTimes: { $gte: 1 } },
       {
         $inc: { remainingTimes: -1, usedTimes: 1 },
         $set: { lastAccessTime: new Date() },
@@ -39,22 +54,8 @@ export async function GET(req: Request, ctx: Ctx) {
     ).exec();
 
     if (!updated) {
-      const exists = await ShortlinkUser.exists({ userId });
-      if (!exists) {
-        return new NextResponse("用户不存在", {
-          status: 404,
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
-        });
-      }
       return new NextResponse("次数不足", {
         status: 403,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      });
-    }
-
-    if (!updated.fileId) {
-      return new NextResponse("该用户未绑定音频", {
-        status: 404,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
@@ -68,7 +69,6 @@ export async function GET(req: Request, ctx: Ctx) {
     console.error("[apl]", err);
     const message =
       err instanceof Error && err.message ? err.message : "服务器内部错误";
-    // ApiError-style messages for missing file / token
     const status =
       typeof err === "object" &&
       err &&

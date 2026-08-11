@@ -32,19 +32,20 @@ import {
   Link2,
   Loader2,
   Music2,
-  Plus,
   Trash2,
 } from "lucide-react";
 
 type ShortlinkInfo = {
   userId: string;
-  fileId: string;
+  fileId: string | null;
   fileName: string | null;
   remainingTimes: number;
   usedTimes: number;
   lastAccessTime: string | null;
   shortUrl: string;
 };
+
+const FIXED_APL = (userId: string) => `https://cq.imim.chat/apl/${userId}`;
 
 type UserRow = {
   _id: string;
@@ -73,7 +74,6 @@ type EditForm = {
   passwordConfirm: string;
 };
 
-const USER_ID_RE = /^[a-zA-Z0-9]{2,8}$/;
 
 function toLocalInputValue(iso?: string | null): string {
   if (!iso) return "";
@@ -104,7 +104,6 @@ export default function AdminUsersPage() {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   // Shortlink form state (inside edit dialog)
-  const [slUserId, setSlUserId] = React.useState("");
   const [slAudio, setSlAudio] = React.useState<AudioFileOption | null>(null);
   const [slTimes, setSlTimes] = React.useState("10");
   const [slSaving, setSlSaving] = React.useState(false);
@@ -145,19 +144,15 @@ export default function AdminUsersPage() {
   };
 
   const syncShortlinkForm = (u: UserRow) => {
-    if (u.shortlink) {
-      setSlUserId(u.shortlink.userId);
+    if (u.shortlink?.fileId) {
       setSlAudio({
         _id: u.shortlink.fileId,
         name: u.shortlink.fileName || u.shortlink.fileId,
       });
-      setSlTimes(String(u.shortlink.remainingTimes ?? 10));
     } else {
-      const uname = (u.username || "").trim();
-      setSlUserId(USER_ID_RE.test(uname) ? uname : "");
       setSlAudio(null);
-      setSlTimes("10");
     }
+    setSlTimes(String(u.shortlink?.remainingTimes ?? 10));
     setSlError("");
   };
 
@@ -177,12 +172,6 @@ export default function AdminUsersPage() {
       passwordConfirm: "",
     });
     syncShortlinkForm(u);
-  };
-
-  const randomShortId = async () => {
-    const res = await fetch("/api/admin/shortlinks?action=random-id");
-    const data = await res.json();
-    if (res.ok && data.userId) setSlUserId(data.userId);
   };
 
   const setRoleQuick = async (userId: string, role: "user" | "vip") => {
@@ -275,60 +264,40 @@ export default function AdminUsersPage() {
     }
   };
 
-  /** Create or update shortlink bound to this MediaVault user */
+  /** Update bound audio + remaining times (shortlink userId is permanent) */
   const saveShortlink = async () => {
-    if (!editing) return;
+    if (!editing?.shortlink) {
+      setSlError("短链接尚未就绪，请刷新后重试");
+      return;
+    }
     setSlSaving(true);
     setSlError("");
     try {
-      if (!USER_ID_RE.test(slUserId.trim())) {
-        throw new Error("短链接用户ID需为2-8位字母或数字");
-      }
-      if (!slAudio?._id) {
-        throw new Error("请选择音频文件");
-      }
       const times = Number(slTimes);
       if (!Number.isFinite(times) || times < 0) {
         throw new Error("次数无效");
       }
-
-      if (editing.shortlink) {
-        // Update audio + absolute remaining times
-        if (slUserId.trim() !== editing.shortlink.userId) {
-          throw new Error("已生成的短链接 userId 不可更改；如需更换请先删除短链接");
-        }
-
-        const res = await fetch("/api/admin/shortlinks", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: editing.shortlink.userId,
-            fileId: slAudio._id,
-            remainingTimes: times,
-            linkedUserId: editing._id,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "更新短链接失败");
-        flash("短链接已更新");
-      } else {
-        const res = await fetch("/api/admin/shortlinks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: slUserId.trim(),
-            fileId: slAudio._id,
-            remainingTimes: times,
-            linkedUserId: editing._id,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "生成短链接失败");
-        flash("短链接已生成");
+      const payload: Record<string, unknown> = {
+        userId: editing.shortlink.userId,
+        remainingTimes: times,
+        linkedUserId: editing._id,
+      };
+      if (slAudio?._id) {
+        payload.fileId = slAudio._id;
       }
 
-      // refresh editing row
-      const listRes = await fetch(`/api/admin/users?q=${encodeURIComponent(editing.email)}&limit=50`);
+      const res = await fetch("/api/admin/shortlinks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "更新失败");
+      flash("短链接已更新");
+
+      const listRes = await fetch(
+        `/api/admin/users?q=${encodeURIComponent(editing.email)}&limit=50`
+      );
       const listData = await listRes.json();
       const fresh = (listData.items || []).find((u: UserRow) => u._id === editing._id);
       if (fresh) {
@@ -343,38 +312,12 @@ export default function AdminUsersPage() {
     }
   };
 
-  const removeShortlink = async () => {
-    if (!editing?.shortlink) return;
-    if (!confirm(`确定删除短链接「${editing.shortlink.userId}」？`)) return;
-    setSlSaving(true);
-    setSlError("");
-    try {
-      const res = await fetch("/api/admin/shortlinks", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: editing.shortlink.userId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "删除失败");
-      flash("短链接已删除");
-      const updated = { ...editing, shortlink: null };
-      setEditing(updated);
-      syncShortlinkForm(updated);
-      await load(q);
-    } catch (err) {
-      setSlError(err instanceof Error ? err.message : "删除失败");
-    } finally {
-      setSlSaving(false);
-    }
-  };
-
   const copyAplLink = async (shortlink: ShortlinkInfo | null | undefined) => {
-    if (!shortlink?.shortUrl && !shortlink?.userId) {
-      flash("该用户尚未生成短链接");
+    if (!shortlink?.userId) {
+      flash("短链接尚未就绪");
       return;
     }
-    const url =
-      shortlink.shortUrl || `https://cq.imim.chat/apl/${shortlink.userId}`;
+    const url = FIXED_APL(shortlink.userId);
     const ok = await copyToClipboard(url);
     flash(ok ? `已复制：${url}` : "请手动复制短链接");
   };
@@ -438,9 +381,9 @@ export default function AdminUsersPage() {
   return (
     <AdminShell title="用户管理">
       <p className="mb-3 text-xs text-slate-400">
-        管理普通用户 / VIP，并在本页配置每人的短链接（
-        <code className="text-slate-300">/apl/&#123;userId&#125;</code>
-        ）。管理员账号请到「系统设置」。
+        每位用户自动拥有固定短链接
+        <code className="mx-1 text-slate-300">https://cq.imim.chat/apl/&#123;userId&#125;</code>
+        ，可在此复制、选音频、改剩余次数。管理员请到「系统设置」。
       </p>
       <div className="mb-4 flex flex-wrap gap-2">
         <Input
@@ -488,14 +431,14 @@ export default function AdminUsersPage() {
                   </TableCell>
                   <TableCell>
                     {u.shortlink ? (
-                      <div className="flex max-w-[220px] items-center gap-1">
+                      <div className="flex max-w-[240px] items-center gap-1">
                         <code className="truncate text-[11px] text-sky-300">
-                          {u.shortlink.shortUrl}
+                          {FIXED_APL(u.shortlink.userId)}
                         </code>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 shrink-0"
+                          className="h-8 w-8 shrink-0"
                           title="复制短链接"
                           onClick={() => copyAplLink(u.shortlink)}
                         >
@@ -503,14 +446,15 @@ export default function AdminUsersPage() {
                         </Button>
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-500">未生成</span>
+                      <span className="text-xs text-slate-500">分配中…</span>
                     )}
                   </TableCell>
                   <TableCell>
                     {u.shortlink ? (
                       <div className="max-w-[140px]">
                         <p className="truncate text-sm text-slate-200">
-                          {u.shortlink.fileName || "（文件缺失）"}
+                          {u.shortlink.fileName ||
+                            (u.shortlink.fileId ? "（文件缺失）" : "未绑定音频")}
                         </p>
                       </div>
                     ) : (
@@ -545,7 +489,7 @@ export default function AdminUsersPage() {
                       <Button size="sm" variant="secondary" onClick={() => openEdit(u)}>
                         编辑
                       </Button>
-                      {u.shortlink ? (
+                      {u.shortlink && (
                         <>
                           <Button
                             size="sm"
@@ -553,17 +497,23 @@ export default function AdminUsersPage() {
                             onClick={() => copyAplLink(u.shortlink)}
                           >
                             <Copy className="mr-1 h-3.5 w-3.5" />
-                            复制链接
+                            复制
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => {
                               setAudioTarget(u);
-                              setAudioPick({
-                                _id: u.shortlink!.fileId,
-                                name: u.shortlink!.fileName || u.shortlink!.fileId,
-                              });
+                              setAudioPick(
+                                u.shortlink?.fileId
+                                  ? {
+                                      _id: u.shortlink.fileId,
+                                      name:
+                                        u.shortlink.fileName ||
+                                        u.shortlink.fileId,
+                                    }
+                                  : null
+                              );
                             }}
                           >
                             <Music2 className="mr-1 h-3.5 w-3.5" />
@@ -580,11 +530,6 @@ export default function AdminUsersPage() {
                             充次
                           </Button>
                         </>
-                      ) : (
-                        <Button size="sm" variant="outline" onClick={() => openEdit(u)}>
-                          <Plus className="mr-1 h-3.5 w-3.5" />
-                          生成短链接
-                        </Button>
                       )}
                       <Button size="sm" variant="ghost" onClick={() => setRoleQuick(u._id, "user")}>
                         免费
@@ -766,33 +711,36 @@ export default function AdminUsersPage() {
                 </div>
               </form>
 
-              {/* Shortlink section */}
+              {/* Shortlink section — always allocated, permanent userId */}
               <div className="space-y-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="flex items-center gap-2 text-sm font-semibold text-sky-200">
                     <Link2 className="h-4 w-4" />
-                    短链接管理
+                    短链接（永久绑定）
                   </h3>
                   {editing.shortlink && (
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
+                      className="min-h-10"
                       onClick={() => copyAplLink(editing.shortlink)}
                     >
                       <Copy className="mr-1 h-3.5 w-3.5" />
-                      复制短链接
+                      一键复制
                     </Button>
                   )}
                 </div>
 
-                {editing.shortlink && (
+                {editing.shortlink ? (
                   <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-300">
-                    <p className="break-all font-mono text-sky-300">
-                      {editing.shortlink.shortUrl}
+                    <p className="break-all font-mono text-sm text-sky-300">
+                      {FIXED_APL(editing.shortlink.userId)}
                     </p>
                     <p className="mt-1 text-slate-500">
-                      已用 {editing.shortlink.usedTimes} 次 · 最后访问{" "}
+                      ID {editing.shortlink.userId} · 剩余{" "}
+                      {editing.shortlink.remainingTimes} · 已用{" "}
+                      {editing.shortlink.usedTimes} · 最后访问{" "}
                       {editing.shortlink.lastAccessTime
                         ? format(
                             new Date(editing.shortlink.lastAccessTime),
@@ -800,37 +748,23 @@ export default function AdminUsersPage() {
                           )
                         : "从未"}
                     </p>
+                    <p className="mt-1 text-slate-500">
+                      当前音频：
+                      {editing.shortlink.fileName ||
+                        (editing.shortlink.fileId ? "（文件缺失）" : "未绑定")}
+                    </p>
                   </div>
+                ) : (
+                  <p className="text-sm text-slate-400">短链接分配中，请关闭后重新打开。</p>
                 )}
 
                 <div className="space-y-1.5">
-                  <Label>短链接用户ID（2-8位字母数字）</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={slUserId}
-                      onChange={(e) => setSlUserId(e.target.value)}
-                      maxLength={8}
-                      disabled={Boolean(editing.shortlink)}
-                      className="border-slate-700 bg-slate-900"
-                      placeholder="例如 a1b2"
-                    />
-                    {!editing.shortlink && (
-                      <Button type="button" variant="outline" onClick={randomShortId}>
-                        随机
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>选择音频文件</Label>
+                  <Label>选择音频（从已上传列表）</Label>
                   <AudioFilePicker value={slAudio?._id || null} onChange={setSlAudio} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>
-                    {editing.shortlink ? "剩余次数（可填更大值以充次）" : "初始次数"}
-                  </Label>
+                  <Label>剩余次数</Label>
                   <Input
                     type="number"
                     min={0}
@@ -842,26 +776,19 @@ export default function AdminUsersPage() {
 
                 {slError && <p className="text-sm text-red-400">{slError}</p>}
 
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" disabled={slSaving} onClick={() => void saveShortlink()}>
-                    {slSaving ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Link2 className="mr-2 h-4 w-4" />
-                    )}
-                    {editing.shortlink ? "更新短链接" : "生成并绑定短链接"}
-                  </Button>
-                  {editing.shortlink && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      disabled={slSaving}
-                      onClick={() => void removeShortlink()}
-                    >
-                      删除短链接
-                    </Button>
+                <Button
+                  type="button"
+                  className="w-full min-h-11 sm:w-auto"
+                  disabled={slSaving || !editing.shortlink}
+                  onClick={() => void saveShortlink()}
+                >
+                  {slSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Link2 className="mr-2 h-4 w-4" />
                   )}
-                </div>
+                  保存音频与次数
+                </Button>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-4">
