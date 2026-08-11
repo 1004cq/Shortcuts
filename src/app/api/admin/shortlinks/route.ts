@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { ShortlinkUser } from "@/models/ShortlinkUser";
 import { FileModel } from "@/models/File";
+import { User } from "@/models/User";
 import {
   ApiError,
   jsonOk,
@@ -25,35 +26,103 @@ async function assertFileExists(fileId: string) {
   if (!mongoose.Types.ObjectId.isValid(fileId)) {
     throw new ApiError("无效的音频文件 ID", 400);
   }
-  const file = await FileModel.findById(fileId).select("_id name").lean();
+  const file = await FileModel.findById(fileId)
+    .select("_id name originalName category mimeType")
+    .lean();
   if (!file) {
     throw new ApiError("音频文件不存在", 404);
   }
   return file;
 }
 
-function serialize(doc: Record<string, unknown>, req: Request) {
-  const userId = String(doc.userId);
-  return {
-    _id: String(doc._id),
-    userId,
-    fileId: String(doc.fileId),
-    remainingTimes: Number(doc.remainingTimes) || 0,
-    usedTimes: Number(doc.usedTimes) || 0,
-    lastAccessTime: doc.lastAccessTime
-      ? new Date(doc.lastAccessTime as Date).toISOString()
-      : null,
-    createdAt: doc.createdAt
-      ? new Date(doc.createdAt as Date).toISOString()
-      : null,
-    updatedAt: doc.updatedAt
-      ? new Date(doc.updatedAt as Date).toISOString()
-      : null,
-    shortUrl: buildAplUrl(userId, req),
-  };
+async function assertLinkedUser(linkedUserId: string | null | undefined) {
+  if (!linkedUserId) return null;
+  if (!mongoose.Types.ObjectId.isValid(linkedUserId)) {
+    throw new ApiError("无效的 MediaVault 用户 ID", 400);
+  }
+  const user = await User.findById(linkedUserId)
+    .select("_id name email username")
+    .lean();
+  if (!user) {
+    throw new ApiError("MediaVault 用户不存在", 404);
+  }
+  return user;
 }
 
-/** GET /api/admin/shortlinks — list (+ optional ?action=random-id) */
+type LeanShortlink = {
+  _id: mongoose.Types.ObjectId;
+  userId: string;
+  fileId: mongoose.Types.ObjectId;
+  linkedUserId?: mongoose.Types.ObjectId | null;
+  remainingTimes?: number;
+  usedTimes?: number;
+  lastAccessTime?: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+async function serializeMany(docs: LeanShortlink[], req: Request) {
+  const fileIds = Array.from(
+    new Set(docs.map((d) => String(d.fileId)).filter(Boolean))
+  );
+  const linkedIds = Array.from(
+    new Set(
+      docs
+        .map((d) => (d.linkedUserId ? String(d.linkedUserId) : ""))
+        .filter(Boolean)
+    )
+  );
+
+  const [files, users] = await Promise.all([
+    fileIds.length
+      ? FileModel.find({ _id: { $in: fileIds } })
+          .select("_id name originalName category mimeType")
+          .lean()
+      : Promise.resolve([]),
+    linkedIds.length
+      ? User.find({ _id: { $in: linkedIds } })
+          .select("_id name email username")
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const fileMap = new Map(files.map((f) => [String(f._id), f]));
+  const userMap = new Map(users.map((u) => [String(u._id), u]));
+
+  return docs.map((doc) => {
+    const file = fileMap.get(String(doc.fileId));
+    const linked = doc.linkedUserId
+      ? userMap.get(String(doc.linkedUserId))
+      : null;
+    return {
+      _id: String(doc._id),
+      userId: doc.userId,
+      fileId: String(doc.fileId),
+      fileName: file?.name || file?.originalName || null,
+      fileOriginalName: file?.originalName || null,
+      fileCategory: file?.category || null,
+      linkedUserId: linked ? String(linked._id) : null,
+      linkedUserName: linked?.name || null,
+      linkedUserEmail: linked?.email || null,
+      linkedUsername: linked?.username || null,
+      remainingTimes: Number(doc.remainingTimes) || 0,
+      usedTimes: Number(doc.usedTimes) || 0,
+      lastAccessTime: doc.lastAccessTime
+        ? new Date(doc.lastAccessTime).toISOString()
+        : null,
+      createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+      updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : null,
+      shortUrl: buildAplUrl(doc.userId, req),
+    };
+  });
+}
+
+async function serializeOne(doc: LeanShortlink, req: Request) {
+  const [item] = await serializeMany([doc], req);
+  return item;
+}
+
+/** GET /api/admin/shortlinks */
 export const GET = withApiHandler(async (req: Request) => {
   await requireAdmin();
   await connectDB();
@@ -71,31 +140,45 @@ export const GET = withApiHandler(async (req: Request) => {
   const filter: Record<string, unknown> = {};
   if (q) {
     const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Also match by file name via pre-lookup
+    const matchedFiles = await FileModel.find({
+      $or: [
+        { name: { $regex: escaped, $options: "i" } },
+        { originalName: { $regex: escaped, $options: "i" } },
+      ],
+    })
+      .select("_id")
+      .lean();
+    const fileIds = matchedFiles.map((f) => f._id);
+
     filter.$or = [
       { userId: { $regex: escaped, $options: "i" } },
       ...(mongoose.Types.ObjectId.isValid(q) ? [{ fileId: q }] : []),
+      ...(fileIds.length ? [{ fileId: { $in: fileIds } }] : []),
     ];
   }
 
   const items = await ShortlinkUser.find(filter).sort({ createdAt: -1 }).lean();
   return jsonOk({
-    items: items.map((item) => serialize(item as Record<string, unknown>, req)),
+    items: await serializeMany(items as LeanShortlink[], req),
   });
 });
 
 const createSchema = z.object({
   userId: userIdSchema,
-  fileId: z.string().min(1, "请填写音频文件 ID"),
+  fileId: z.string().min(1, "请选择音频文件"),
   remainingTimes: z.coerce.number().int().min(0).default(0),
+  linkedUserId: z.string().nullable().optional(),
 });
 
-/** POST /api/admin/shortlinks — create user */
+/** POST /api/admin/shortlinks — create */
 export const POST = withApiHandler(async (req: Request) => {
   await requireAdmin();
   await connectDB();
 
   const body = createSchema.parse(await req.json());
   await assertFileExists(body.fileId);
+  const linked = await assertLinkedUser(body.linkedUserId ?? null);
 
   const exists = await ShortlinkUser.exists({ userId: body.userId });
   if (exists) {
@@ -105,13 +188,14 @@ export const POST = withApiHandler(async (req: Request) => {
   const created = await ShortlinkUser.create({
     userId: body.userId,
     fileId: body.fileId,
+    linkedUserId: linked?._id ?? null,
     remainingTimes: body.remainingTimes,
     usedTimes: 0,
     lastAccessTime: null,
   });
 
   return jsonOk({
-    item: serialize(created.toObject() as Record<string, unknown>, req),
+    item: await serializeOne(created.toObject() as LeanShortlink, req),
   });
 });
 
@@ -119,14 +203,18 @@ const patchSchema = z
   .object({
     userId: userIdSchema,
     fileId: z.string().min(1).optional(),
-    /** Add this many plays (recharge) */
     addTimes: z.coerce.number().int().positive().optional(),
+    linkedUserId: z.string().nullable().optional(),
   })
-  .refine((v) => v.fileId !== undefined || v.addTimes !== undefined, {
-    message: "请提供 fileId 或 addTimes",
-  });
+  .refine(
+    (v) =>
+      v.fileId !== undefined ||
+      v.addTimes !== undefined ||
+      v.linkedUserId !== undefined,
+    { message: "请提供要更新的字段" }
+  );
 
-/** PATCH /api/admin/shortlinks — change fileId and/or recharge */
+/** PATCH /api/admin/shortlinks */
 export const PATCH = withApiHandler(async (req: Request) => {
   await requireAdmin();
   await connectDB();
@@ -144,10 +232,14 @@ export const PATCH = withApiHandler(async (req: Request) => {
   if (body.addTimes !== undefined) {
     doc.remainingTimes = (doc.remainingTimes || 0) + body.addTimes;
   }
+  if (body.linkedUserId !== undefined) {
+    const linked = await assertLinkedUser(body.linkedUserId);
+    doc.linkedUserId = linked?._id ?? null;
+  }
 
   await doc.save();
   return jsonOk({
-    item: serialize(doc.toObject() as Record<string, unknown>, req),
+    item: await serializeOne(doc.toObject() as LeanShortlink, req),
   });
 });
 
@@ -155,7 +247,7 @@ const deleteSchema = z.object({
   userId: userIdSchema,
 });
 
-/** DELETE /api/admin/shortlinks — delete by userId */
+/** DELETE /api/admin/shortlinks */
 export const DELETE = withApiHandler(async (req: Request) => {
   await requireAdmin();
   await connectDB();

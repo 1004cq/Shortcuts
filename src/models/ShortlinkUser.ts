@@ -24,6 +24,13 @@ const ShortlinkUserSchema = new Schema(
       required: true,
       index: true,
     },
+    /** Optional link to a MediaVault account (display / management only) */
+    linkedUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
     remainingTimes: {
       type: Number,
       required: true,
