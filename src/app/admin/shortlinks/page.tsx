@@ -42,7 +42,7 @@ import {
 type ShortlinkRow = {
   _id: string;
   userId: string;
-  fileId: string;
+  fileId: string | null;
   fileName: string | null;
   remainingTimes: number;
   usedTimes: number;
@@ -183,8 +183,8 @@ export default function AdminShortlinksPage() {
     setNewUserId(row.userId);
     setLinkedUserId(row.linkedUserId);
     setSelectedAudio({
-      _id: row.fileId,
-      name: row.fileName || row.fileId,
+      _id: row.fileId || "",
+      name: row.fileName || row.fileId || "未绑定音频",
     });
     setNewTimes(String(row.remainingTimes ?? 10));
     setFormError("");
@@ -448,7 +448,7 @@ export default function AdminShortlinksPage() {
                     <TableCell>
                       <div className="max-w-[160px]">
                         <p className="truncate text-sm">
-                          {row.fileName || "（文件已删除）"}
+                          {row.fileName || (row.fileId ? "（文件已删除）" : "未绑定音频")}
                         </p>
                       </div>
                     </TableCell>
@@ -493,8 +493,8 @@ export default function AdminShortlinksPage() {
                           onClick={() => {
                             setAudioTarget(row);
                             setAudioPick({
-                              _id: row.fileId,
-                              name: row.fileName || row.fileId,
+                              _id: row.fileId || "",
+                              name: row.fileName || row.fileId || "未绑定音频",
                             });
                           }}
                         >
