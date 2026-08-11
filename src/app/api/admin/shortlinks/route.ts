@@ -61,7 +61,7 @@ type LeanShortlink = {
   updatedAt?: Date;
 };
 
-async function serializeMany(docs: LeanShortlink[], req: Request) {
+async function serializeMany(docs: LeanShortlink[], _req?: Request) {
   const fileIds = Array.from(
     new Set(
       docs.map((d) => (d.fileId ? String(d.fileId) : "")).filter(Boolean)
