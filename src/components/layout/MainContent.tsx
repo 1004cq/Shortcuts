@@ -26,7 +26,7 @@ export function MainContent({
         className
       )}
     >
-      <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-5 sm:py-6 md:px-6 md:py-8 lg:px-8">
+      <div className="mx-auto w-full min-w-0 max-w-7xl px-3 py-3 sm:px-5 sm:py-6 md:px-6 md:py-8 lg:px-8">
         {children}
       </div>
     </main>

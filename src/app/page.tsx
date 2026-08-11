@@ -9,8 +9,6 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { cn, formatBytes } from "@/lib/utils";
 import {
   Check,
-  ChevronLeft,
-  ChevronRight,
   Copy,
   Link2,
   Loader2,
@@ -92,12 +90,16 @@ export default function HomePage() {
     if (status === "authenticated") void load();
   }, [status, load]);
 
+  // Scroll selected card inside the rail only — never scroll the page sideways
   React.useEffect(() => {
-    if (!shortlink?.fileId || !railRef.current) return;
-    const el = railRef.current.querySelector(
+    const rail = railRef.current;
+    if (!shortlink?.fileId || !rail) return;
+    const el = rail.querySelector<HTMLElement>(
       `[data-audio-id="${shortlink.fileId}"]`
     );
-    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    if (!el) return;
+    const left = el.offsetLeft - (rail.clientWidth - el.offsetWidth) / 2;
+    rail.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
   }, [shortlink?.fileId, audios]);
 
   const copyLink = async () => {
@@ -133,43 +135,30 @@ export default function HomePage() {
     }
   };
 
-  const scrollRail = (dir: -1 | 1) => {
-    const el = railRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * Math.max(240, el.clientWidth * 0.7), behavior: "smooth" });
-  };
-
-  const selected = audios.find((a) => a._id === shortlink?.fileId) || null;
-
   return (
-    <AppShell
-      title="我的短链接"
-      showSearch={false}
-      showUpload={false}
-      contentClassName="px-3 sm:px-6"
-    >
-      <div className="mx-auto flex w-full max-w-lg flex-col gap-5 pb-4 pt-1 animate-slide-up sm:max-w-xl sm:gap-6">
+    <AppShell title="我的短链接" showSearch={false} showUpload={false}>
+      <div className="mx-auto w-full min-w-0 max-w-md space-y-4 overflow-x-hidden animate-slide-up sm:max-w-lg sm:space-y-5">
         {/* Shortlink */}
-        <section className="rounded-3xl border border-sky-500/25 bg-gradient-to-b from-sky-500/15 via-sky-950/40 to-transparent p-5 shadow-[0_0_40px_-20px_rgba(56,189,248,0.45)] sm:p-6">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-b from-sky-500/15 via-sky-950/40 to-transparent p-4 sm:rounded-3xl sm:p-5">
           <div className="mb-3 flex items-center gap-2 text-sky-200">
-            <Link2 className="h-5 w-5" />
-            <h1 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
+            <Link2 className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+            <h1 className="truncate font-display text-base font-semibold tracking-tight sm:text-lg">
               我的短链接
             </h1>
           </div>
 
           {loading ? (
-            <div className="flex h-28 items-center justify-center text-slate-400">
+            <div className="flex h-24 items-center justify-center text-slate-400">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               加载中…
             </div>
           ) : shortlink ? (
             <>
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-4">
-                <p className="break-all font-mono text-base font-semibold leading-relaxed text-sky-300 sm:text-lg">
+              <div className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-black/30 px-3 py-3 sm:rounded-2xl sm:px-4 sm:py-3.5">
+                <p className="break-all font-mono text-[13px] font-semibold leading-snug text-sky-300 sm:text-sm">
                   {shortlink.shortUrl}
                 </p>
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="mt-1.5 truncate text-[11px] text-slate-400 sm:text-xs">
                   ID {shortlink.shortlinkUserId}
                   {" · "}剩余 {shortlink.remainingTimes}
                   {" · "}已用 {shortlink.usedTimes}
@@ -179,14 +168,14 @@ export default function HomePage() {
               <Button
                 type="button"
                 size="lg"
-                className="mt-4 min-h-12 w-full gap-2 bg-sky-500 text-base font-semibold text-slate-950 hover:bg-sky-400"
+                className="mt-3 min-h-11 w-full gap-2 bg-sky-500 text-sm font-semibold text-slate-950 hover:bg-sky-400 sm:mt-4 sm:min-h-12 sm:text-base"
                 onClick={() => void copyLink()}
               >
-                {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? "已复制" : "复制短链接"}
               </Button>
 
-              <ol className="mt-4 space-y-1.5 text-xs leading-relaxed text-slate-400 sm:text-[13px]">
+              <ol className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400 sm:mt-4 sm:text-xs">
                 <li>1. 快捷指令添加「获取 URL 内容」</li>
                 <li>2. 粘贴上方短链接</li>
                 <li>3. 再添加「播放声音」</li>
@@ -194,60 +183,44 @@ export default function HomePage() {
               </ol>
             </>
           ) : (
-            <p className="text-sm text-slate-400">短链接加载失败，请下拉刷新。</p>
+            <p className="text-sm text-slate-400">短链接加载失败，请刷新。</p>
           )}
         </section>
 
         {/* Audio switcher */}
-        <section className="space-y-3">
-          <div className="flex items-end justify-between gap-2 px-0.5">
-            <div>
-              <h2 className="font-display text-base font-semibold text-slate-100 sm:text-lg">
+        <section className="min-w-0 space-y-2.5 overflow-hidden">
+          <div className="flex min-w-0 items-end justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="font-display text-sm font-semibold text-slate-100 sm:text-base">
                 切换音频
               </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                左右滑动选择，短链接地址不变
+              <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">
+                左右滑动选择，短链接不变
               </p>
             </div>
-            {selected && (
-              <Badge variant="secondary" className="max-w-[40%] truncate">
-                当前已选
+            {shortlink?.fileId && (
+              <Badge variant="secondary" className="shrink-0 text-[10px]">
+                已选
               </Badge>
             )}
           </div>
 
           {loading ? (
-            <div className="flex h-40 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-400">
+            <div className="flex h-36 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-400">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               加载音频…
             </div>
           ) : audios.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/15 px-4 py-10 text-center text-sm text-slate-500">
+            <div className="rounded-2xl border border-dashed border-white/15 px-4 py-8 text-center text-sm text-slate-500">
               暂无可用音频，请联系管理员上传
             </div>
           ) : (
             <>
-              <div className="relative">
-                <button
-                  type="button"
-                  aria-label="上一个"
-                  onClick={() => scrollRail(-1)}
-                  className="absolute left-0 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-slate-950/80 text-slate-200 backdrop-blur sm:flex"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="下一个"
-                  onClick={() => scrollRail(1)}
-                  className="absolute right-0 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-slate-950/80 text-slate-200 backdrop-blur sm:flex"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-
+              {/* Isolate horizontal scroll so it cannot widen the page */}
+              <div className="relative -mx-3 min-w-0 overflow-hidden sm:mx-0">
                 <div
                   ref={railRef}
-                  className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-3 pb-1 touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-3 sm:px-0 [&::-webkit-scrollbar]:hidden"
                 >
                   {audios.map((audio) => {
                     const active = audio._id === shortlink?.fileId;
@@ -259,44 +232,46 @@ export default function HomePage() {
                         disabled={saving}
                         onClick={() => void selectAudio(audio)}
                         className={cn(
-                          "min-w-[78%] shrink-0 snap-center rounded-3xl border p-5 text-left transition active:scale-[0.98] sm:min-w-[240px]",
+                          "w-[78vw] max-w-[280px] shrink-0 snap-center rounded-2xl border p-4 text-left transition active:scale-[0.98] sm:w-[220px] sm:p-5",
                           active
                             ? "border-sky-400 bg-sky-500/20 shadow-[0_0_0_1px_rgba(56,189,248,0.35)]"
-                            : "border-white/10 bg-white/5 hover:border-white/25"
+                            : "border-white/10 bg-white/5"
                         )}
                       >
                         <div
                           className={cn(
-                            "mb-4 flex h-14 w-14 items-center justify-center rounded-2xl",
+                            "mb-3 flex h-11 w-11 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl",
                             active
                               ? "bg-sky-400/25 text-sky-200"
                               : "bg-white/10 text-slate-300"
                           )}
                         >
-                          <Music2 className="h-7 w-7" />
+                          <Music2 className="h-5 w-5 sm:h-6 sm:w-6" />
                         </div>
-                        <p className="line-clamp-2 text-base font-semibold leading-snug text-slate-100">
+                        <p className="line-clamp-2 break-words text-sm font-semibold leading-snug text-slate-100 sm:text-base">
                           {audio.name}
                         </p>
-                        <p className="mt-1.5 text-xs text-slate-500">
+                        <p className="mt-1 text-[11px] text-slate-500 sm:text-xs">
                           {typeof audio.size === "number"
                             ? formatBytes(audio.size)
                             : "音频"}
                         </p>
                         {active && (
-                          <span className="mt-3 inline-flex items-center gap-1 text-sm text-sky-300">
-                            <Check className="h-4 w-4" />
+                          <span className="mt-2 inline-flex items-center gap-1 text-xs text-sky-300 sm:mt-3 sm:text-sm">
+                            <Check className="h-3.5 w-3.5" />
                             当前播放
                           </span>
                         )}
                       </button>
                     );
                   })}
+                  {/* trailing spacer so last card can center */}
+                  <div className="w-3 shrink-0 sm:w-0" aria-hidden />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
-                <p className="text-xs text-slate-500">当前绑定</p>
+              <div className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm sm:rounded-2xl sm:px-4 sm:py-3">
+                <p className="text-[11px] text-slate-500">当前绑定</p>
                 <p className="mt-0.5 truncate font-medium text-slate-100">
                   {shortlink?.fileName ||
                     (shortlink?.hasAudio ? "（文件缺失）" : "尚未选择音频")}
