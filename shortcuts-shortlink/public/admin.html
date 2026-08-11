@@ -1,211 +1,700 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>音频控制系统后台</title>
-    <style>
-        body { font-family: -apple-system, sans-serif; background: #f4f7f6; margin: 0; padding: 10px; }
-        .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #333; text-align: center; font-size: 22px; }
-        .login-box { max-width: 300px; margin: 100px auto; text-align: center; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
-        button { padding: 10px 20px; background: #007aff; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
-        button:hover { background: #0056b3; }
-        .config-section { background: #fff3e0; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ffe0b2; }
-        .form-section { background: #f9f9f9; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #eee; }
-        .link-section { background: #e8f5e9; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #c8e6c9; }
-        .form-inline { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        .form-inline input { flex: 1; min-width: 150px; margin: 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
-        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
-        th { background: #f8f9fa; }
-        .badge { padding: 2px 8px; border-radius: 12px; font-weight: bold; }
-        .badge-remaining { background: #e3f2fd; color: #1976d2; }
-        .badge-used { background: #f1f8e9; color: #388e3c; }
-        .btn-sm { padding: 5px 10px; font-size: 12px; }
-        .btn-danger { background: #ff3b30; }
-        .btn-success { background: #34c759; }
-        .btn-info { background: #5856d6; }
-        .short-link { font-family: monospace; background: #f5f5f5; padding: 8px 12px; border-radius: 4px; word-break: break-all; }
-        @media (max-width: 600px) { .form-inline { flex-direction: column; } .form-inline input { width: 100%; } }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>短链接音频播放系统 - 管理后台</title>
+  <style>
+    :root {
+      --bg: #f0f3f7;
+      --card: #ffffff;
+      --text: #1a1d26;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #059669;
+      --danger: #dc2626;
+      --tip-bg: #ecfdf5;
+      --tip-border: #a7f3d0;
+      --cfg-bg: #fff7ed;
+      --cfg-border: #fed7aa;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: var(--card);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    h1 { margin: 0 0 8px; font-size: 22px; text-align: center; }
+    h2 { margin: 0 0 12px; font-size: 16px; }
+
+    .subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+
+    .hidden { display: none !important; }
+
+    .login-box {
+      max-width: 340px;
+      margin: 80px auto;
+      text-align: center;
+    }
+
+    .login-box input { width: 100%; margin: 8px 0; }
+
+    input, button { font: inherit; }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    input:focus {
+      outline: 2px solid rgba(37, 99, 235, 0.25);
+      border-color: var(--primary);
+    }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .btn-block { width: 100%; }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+    .btn-success { background: var(--success); }
+    .btn-success:hover { background: #047857; }
+    .btn-danger { background: var(--danger); }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-secondary { background: #6b7280; }
+    .btn-secondary:hover { background: #4b5563; }
+    .btn-outline {
+      background: #fff;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .btn-outline:hover { background: #eff6ff; }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .section {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 18px;
+      background: #fafbfc;
+    }
+
+    .section.tip {
+      background: var(--tip-bg);
+      border-color: var(--tip-border);
+    }
+
+    .section.config {
+      background: var(--cfg-bg);
+      border-color: var(--cfg-border);
+    }
+
+    .short-link {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      border-radius: 8px;
+      word-break: break-all;
+      margin: 8px 0;
+      font-size: 14px;
+    }
+
+    .form-inline {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .form-inline input { flex: 1; min-width: 140px; margin: 0; }
+
+    .id-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 1.2;
+      min-width: 220px;
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: #fff;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .badge-remaining { background: #dbeafe; color: #1d4ed8; }
+    .badge-used { background: #d1fae5; color: #047857; }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .error { color: var(--danger); font-size: 13px; margin-top: 8px; }
+    .msg { color: var(--success); font-size: 13px; margin-top: 8px; }
+
+    .modal-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 1000;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 440px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal h3 { margin: 0 0 12px; font-size: 17px; }
+    .modal .row { margin: 12px 0; }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 800px) {
+      body { padding: 10px; }
+      .container { padding: 16px; }
+      .form-inline { flex-direction: column; align-items: stretch; }
+      .id-group { width: 100%; min-width: 0; }
+    }
+  </style>
 </head>
 <body>
-    <div id="app" class="container">
-        <!-- 登录 -->
-        <div v-if="!isLoggedIn" class="login-box">
-            <h2>管理员登录</h2>
-            <input v-model="loginForm.username" placeholder="账号">
-            <input v-model="loginForm.password" type="password" placeholder="密码">
-            <button @click="login" style="width:100%">登录</button>
-        </div>
-
-        <!-- 主界面 -->
-        <div v-else>
-            <h1>音频控制系统</h1>
-
-            <!-- 短链接说明 -->
-            <div class="link-section">
-                <strong>短链接使用说明</strong>
-                <p style="margin: 8px 0 4px; color: #555; font-size: 14px;">
-                    用户在苹果快捷指令中填写：
-                </p>
-                <div class="short-link">https://cq.imim.chat/apl/{用户ID}</div>
-                <p style="margin: 10px 0 0; color: #666; font-size: 13px;">
-                    示例：https://cq.imim.chat/apl/1004CQ<br>
-                    每次访问自动扣除 1 次，次数用完后将无法播放。
-                </p>
-            </div>
-
-            <!-- 全局配置 -->
-            <div class="config-section">
-                <strong>1. 全局 Token 配置</strong>
-                <div class="form-inline" style="margin-top:10px">
-                    <input v-model="config.apiToken" placeholder="输入 API Token（主站生成的）">
-                    <button @click="updateConfig" class="btn-sm">保存</button>
-                </div>
-            </div>
-            
-            <!-- 用户管理 -->
-            <div class="form-section">
-                <strong>2. {{ isEditing ? '修改用户' : '添加用户' }}</strong>
-                <div class="form-inline" style="margin-top:10px">
-                    <div style="flex: 1; display: flex; gap: 5px;">
-                        <input v-model="newUser.userId" placeholder="用户ID（2-8位字母数字）" :disabled="isEditing">
-                        <button v-if="!isEditing" @click="generateId" class="btn-sm btn-info">随机ID</button>
-                    </div>
-                    <input v-model="newUser.fileId" placeholder="音频文件ID">
-                    <input v-if="!isEditing" v-model="newUser.initialTimes" type="number" placeholder="初始次数" style="max-width:100px">
-                    <button @click="saveUser" class="btn-sm">{{ isEditing ? '更新' : '创建' }}</button>
-                    <button v-if="isEditing" @click="cancelEdit" class="btn-sm" style="background:#8e8e93">取消</button>
-                </div>
-            </div>
-
-            <!-- 列表 -->
-            <div style="overflow-x:auto">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>用户ID</th>
-                            <th>短链接</th>
-                            <th>剩余次数</th>
-                            <th>已使用</th>
-                            <th>音频文件ID</th>
-                            <th>最后访问</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="user in users" :key="user.userId">
-                            <td><strong>{{ user.userId }}</strong></td>
-                            <td>
-                                <code style="font-size:12px">/apl/{{ user.userId }}</code>
-                                <button @click="copyLink(user.userId)" class="btn-sm" style="margin-left:6px;padding:2px 6px;">复制</button>
-                            </td>
-                            <td><span class="badge badge-remaining">{{ user.remainingTimes }}</span></td>
-                            <td><span class="badge badge-used">{{ user.usedTimes }}</span></td>
-                            <td><code>{{ user.fileId }}</code></td>
-                            <td style="color:#666; font-size:11px">{{ formatDate(user.lastAccessTime) }}</td>
-                            <td>
-                                <button @click="recharge(user.userId)" class="btn-sm btn-success">充次</button>
-                                <button @click="editUser(user)" class="btn-sm">修改</button>
-                                <button @click="delUser(user.userId)" class="btn-sm btn-danger">删除</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+  <div class="container">
+    <!-- 登录 -->
+    <div id="loginView" class="login-box">
+      <h1>管理员登录</h1>
+      <p class="subtitle">用户专属短链接音频播放系统</p>
+      <input id="loginUsername" type="text" placeholder="账号" autocomplete="username" value="admin">
+      <input id="loginPassword" type="password" placeholder="密码" autocomplete="current-password">
+      <button class="btn-block" id="loginBtn" style="margin-top:12px">登录</button>
+      <div id="loginError" class="error hidden"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
-    <script>
-        new Vue({
-            el: '#app',
-            data: {
-                isLoggedIn: false,
-                isEditing: false,
-                loginForm: { username: '', password: '' },
-                config: { apiToken: '' },
-                users: [],
-                newUser: { userId: '', fileId: '', initialTimes: 10 }
-            },
-            mounted() { this.init(); },
-            methods: {
-                async init() {
-                    const res = await fetch('/api/users');
-                    if (res.ok) {
-                        this.isLoggedIn = true;
-                        this.fetchData();
-                    }
-                },
-                async login() {
-                    const res = await fetch('/api/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(this.loginForm)
-                    });
-                    if (res.ok) { this.isLoggedIn = true; this.fetchData(); }
-                    else alert('登录失败');
-                },
-                async fetchData() {
-                    const [uRes, cRes] = await Promise.all([fetch('/api/users'), fetch('/api/config')]);
-                    if (uRes.ok) this.users = await uRes.json();
-                    if (cRes.ok) this.config = await cRes.json();
-                },
-                async updateConfig() {
-                    await fetch('/api/config', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(this.config)
-                    });
-                    alert('已保存');
-                },
-                generateId() {
-                    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-                    let res = '';
-                    for (let i = 0; i < 6; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
-                    this.newUser.userId = res;
-                },
-                async saveUser() {
-                    const res = await fetch('/api/users', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(this.newUser)
-                    });
-                    if (res.ok) { this.cancelEdit(); this.fetchData(); }
-                    else alert((await res.json()).message);
-                },
-                async recharge(userId) {
-                    const t = prompt('增加次数:', '10');
-                    if (!t) return;
-                    await fetch('/api/users/recharge', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId, times: t })
-                    });
-                    this.fetchData();
-                },
-                editUser(user) { this.isEditing = true; this.newUser = { ...user }; },
-                cancelEdit() { this.isEditing = false; this.newUser = { userId: '', fileId: '', initialTimes: 10 }; },
-                async delUser(id) {
-                    if (confirm('确定删除?')) {
-                        await fetch(`/api/users/${id}`, { method: 'DELETE' });
-                        this.fetchData();
-                    }
-                },
-                copyLink(userId) {
-                    const link = `https://cq.imim.chat/apl/${userId}`;
-                    navigator.clipboard.writeText(link).then(() => {
-                        alert('已复制：' + link);
-                    }).catch(() => {
-                        prompt('复制以下链接：', link);
-                    });
-                },
-                formatDate(d) { return d ? new Date(d).toLocaleString() : '从未访问'; }
-            }
+    <!-- 主界面 -->
+    <div id="mainView" class="hidden">
+      <div class="topbar">
+        <div>
+          <h1 style="text-align:left;margin:0">短链接音频播放系统</h1>
+          <div class="muted">固定短链接 · 按次计费 · 后台换音频</div>
+        </div>
+        <button class="btn-secondary btn-sm" id="logoutBtn">退出登录</button>
+      </div>
+
+      <div class="section tip">
+        <h2>短链接说明</h2>
+        <p class="muted" style="margin:0 0 6px">用户在苹果快捷指令中只需填写自己的固定短链接：</p>
+        <div class="short-link">https://cq.imim.chat/apl/{userId}</div>
+        <p class="muted" style="margin:0">
+          示例：https://cq.imim.chat/apl/demo01<br>
+          访问后自动扣 1 次，并重定向到当前绑定音频的下载地址。用户以后换音频无需修改快捷指令。
+        </p>
+      </div>
+
+      <div class="section config">
+        <h2>1. 全局 API Token 配置</h2>
+        <p class="muted" style="margin:0 0 10px">
+          用于拼接真实下载链接：
+          <code>https://cq.imim.chat/api/files/{fileId}/download?token=Token</code>
+        </p>
+        <div class="form-inline">
+          <input id="apiToken" type="text" placeholder="输入主站生成的 API Token">
+          <button type="button" class="btn-sm" id="saveConfigBtn">保存 Token</button>
+        </div>
+        <div id="configMsg" class="msg hidden"></div>
+        <div id="configError" class="error hidden"></div>
+      </div>
+
+      <div class="section">
+        <h2>2. 添加新用户</h2>
+        <div class="form-inline">
+          <div class="id-group">
+            <input id="newUserId" type="text" placeholder="用户ID（2-8位字母数字）" maxlength="8">
+            <button type="button" class="btn-outline btn-sm" id="randomIdBtn">随机生成</button>
+          </div>
+          <input id="newFileId" type="text" placeholder="音频文件ID">
+          <input id="newRemaining" type="number" min="0" step="1" placeholder="初始次数" value="10" style="max-width:120px;flex:0 0 120px">
+          <button type="button" id="addUserBtn">添加</button>
+        </div>
+        <div id="addMsg" class="msg hidden"></div>
+        <div id="addError" class="error hidden"></div>
+      </div>
+
+      <div class="section" style="background:#fff;padding:0;overflow:hidden">
+        <div style="padding:16px 16px 0">
+          <h2>3. 用户列表 <span class="muted" id="userCount"></span></h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>用户ID</th>
+                <th>剩余次数</th>
+                <th>已使用次数</th>
+                <th>音频文件ID</th>
+                <th>最后访问时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <tr><td colspan="6" class="muted">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改音频弹窗 -->
+  <div id="fileModal" class="modal-mask hidden">
+    <div class="modal">
+      <h3>更换音频</h3>
+      <div class="row muted">用户ID：<strong id="fileModalUserId"></strong></div>
+      <div class="row">
+        <input id="fileModalFileId" type="text" placeholder="新的音频文件ID">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" id="fileModalCancel">取消</button>
+        <button type="button" id="fileModalSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 充值弹窗 -->
+  <div id="rechargeModal" class="modal-mask hidden">
+    <div class="modal">
+      <h3>充值次数</h3>
+      <div class="row muted">用户ID：<strong id="rechargeModalUserId"></strong></div>
+      <div class="row">
+        <input id="rechargeTimes" type="number" min="1" step="1" value="10" placeholder="增加次数">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" id="rechargeModalCancel">取消</button>
+        <button class="btn-success" type="button" id="rechargeModalSave">确认充值</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var SHORT_LINK_BASE = 'https://cq.imim.chat/apl/';
+      var USER_ID_REGEXP = /^[a-zA-Z0-9]{2,8}$/;
+
+      var el = {
+        loginView: document.getElementById('loginView'),
+        mainView: document.getElementById('mainView'),
+        loginUsername: document.getElementById('loginUsername'),
+        loginPassword: document.getElementById('loginPassword'),
+        loginBtn: document.getElementById('loginBtn'),
+        loginError: document.getElementById('loginError'),
+        logoutBtn: document.getElementById('logoutBtn'),
+        apiToken: document.getElementById('apiToken'),
+        saveConfigBtn: document.getElementById('saveConfigBtn'),
+        configMsg: document.getElementById('configMsg'),
+        configError: document.getElementById('configError'),
+        newUserId: document.getElementById('newUserId'),
+        newFileId: document.getElementById('newFileId'),
+        newRemaining: document.getElementById('newRemaining'),
+        randomIdBtn: document.getElementById('randomIdBtn'),
+        addUserBtn: document.getElementById('addUserBtn'),
+        addMsg: document.getElementById('addMsg'),
+        addError: document.getElementById('addError'),
+        userTableBody: document.getElementById('userTableBody'),
+        userCount: document.getElementById('userCount'),
+        fileModal: document.getElementById('fileModal'),
+        fileModalUserId: document.getElementById('fileModalUserId'),
+        fileModalFileId: document.getElementById('fileModalFileId'),
+        fileModalCancel: document.getElementById('fileModalCancel'),
+        fileModalSave: document.getElementById('fileModalSave'),
+        rechargeModal: document.getElementById('rechargeModal'),
+        rechargeModalUserId: document.getElementById('rechargeModalUserId'),
+        rechargeTimes: document.getElementById('rechargeTimes'),
+        rechargeModalCancel: document.getElementById('rechargeModalCancel'),
+        rechargeModalSave: document.getElementById('rechargeModalSave')
+      };
+
+      var users = [];
+
+      function show(node) { node.classList.remove('hidden'); }
+      function hide(node) { node.classList.add('hidden'); }
+
+      function setText(node, text) {
+        node.textContent = text || '';
+        if (text) show(node); else hide(node);
+      }
+
+      function formatDate(iso) {
+        if (!iso) return '从未访问';
+        try {
+          return new Date(iso).toLocaleString('zh-CN', { hour12: false });
+        } catch (e) {
+          return iso;
+        }
+      }
+
+      function escapeHtml(str) {
+        return String(str == null ? '' : str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      async function api(url, options) {
+        options = options || {};
+        var res = await fetch(url, Object.assign({
+          credentials: 'same-origin',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, options.headers || {})
+        }, options));
+        var text = await res.text();
+        var data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (e) { data = { message: text }; }
+        return { ok: res.ok, status: res.status, data: data };
+      }
+
+      function showLogin() {
+        show(el.loginView);
+        hide(el.mainView);
+      }
+
+      function showMain() {
+        hide(el.loginView);
+        show(el.mainView);
+      }
+
+      async function checkSession() {
+        var result = await api('/api/users');
+        if (result.ok) {
+          showMain();
+          await loadAll();
+        } else {
+          showLogin();
+        }
+      }
+
+      async function login() {
+        setText(el.loginError, '');
+        var result = await api('/api/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            username: el.loginUsername.value.trim(),
+            password: el.loginPassword.value
+          })
         });
-    </script>
+        if (!result.ok) {
+          setText(el.loginError, (result.data && result.data.message) || '登录失败');
+          return;
+        }
+        showMain();
+        await loadAll();
+      }
+
+      async function logout() {
+        await api('/api/logout', { method: 'POST', body: '{}' });
+        showLogin();
+      }
+
+      async function loadAll() {
+        var results = await Promise.all([api('/api/users'), api('/api/config')]);
+        var uRes = results[0];
+        var cRes = results[1];
+
+        if (!uRes.ok) {
+          if (uRes.status === 403) showLogin();
+          el.userTableBody.innerHTML = '<tr><td colspan="6" class="error">加载失败</td></tr>';
+          return;
+        }
+
+        users = Array.isArray(uRes.data) ? uRes.data : [];
+        renderUsers();
+
+        if (cRes.ok && cRes.data) {
+          el.apiToken.value = cRes.data.apiToken || '';
+        }
+      }
+
+      function renderUsers() {
+        el.userCount.textContent = '（共 ' + users.length + ' 人）';
+        if (!users.length) {
+          el.userTableBody.innerHTML = '<tr><td colspan="6" class="muted">暂无用户，请先添加</td></tr>';
+          return;
+        }
+
+        el.userTableBody.innerHTML = users.map(function (u) {
+          var link = SHORT_LINK_BASE + encodeURIComponent(u.userId);
+          return (
+            '<tr>' +
+              '<td><strong>' + escapeHtml(u.userId) + '</strong>' +
+                '<div class="muted mono">' + escapeHtml(link) + '</div></td>' +
+              '<td><span class="badge badge-remaining">' + escapeHtml(u.remainingTimes) + '</span></td>' +
+              '<td><span class="badge badge-used">' + escapeHtml(u.usedTimes || 0) + '</span></td>' +
+              '<td class="mono">' + escapeHtml(u.fileId || '') + '</td>' +
+              '<td class="muted">' + escapeHtml(formatDate(u.lastAccessTime)) + '</td>' +
+              '<td><div class="actions">' +
+                '<button class="btn-sm btn-outline" data-action="copy" data-id="' + escapeHtml(u.userId) + '">复制链接</button>' +
+                '<button class="btn-sm" data-action="file" data-id="' + escapeHtml(u.userId) + '">换音频</button>' +
+                '<button class="btn-sm btn-success" data-action="recharge" data-id="' + escapeHtml(u.userId) + '">充次</button>' +
+                '<button class="btn-sm btn-danger" data-action="delete" data-id="' + escapeHtml(u.userId) + '">删除</button>' +
+              '</div></td>' +
+            '</tr>'
+          );
+        }).join('');
+      }
+
+      async function saveConfig() {
+        setText(el.configMsg, '');
+        setText(el.configError, '');
+        var result = await api('/api/config', {
+          method: 'POST',
+          body: JSON.stringify({ apiToken: el.apiToken.value.trim() })
+        });
+        if (!result.ok) {
+          setText(el.configError, (result.data && result.data.message) || '保存失败');
+          return;
+        }
+        setText(el.configMsg, 'Token 已保存');
+      }
+
+      async function generateRandomId() {
+        setText(el.addError, '');
+        var result = await api('/api/users/random-id');
+        if (result.ok && result.data && result.data.userId) {
+          el.newUserId.value = result.data.userId;
+          return;
+        }
+        var chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        var len = 2 + Math.floor(Math.random() * 7);
+        var id = '';
+        for (var i = 0; i < len; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+        el.newUserId.value = id;
+      }
+
+      async function addUser() {
+        setText(el.addMsg, '');
+        setText(el.addError, '');
+
+        var userId = el.newUserId.value.trim();
+        var fileId = el.newFileId.value.trim();
+        var remainingTimes = el.newRemaining.value;
+
+        if (!USER_ID_REGEXP.test(userId)) {
+          setText(el.addError, '用户ID需为2-8位字母或数字（a-z、A-Z、0-9）');
+          return;
+        }
+        if (!fileId) {
+          setText(el.addError, '请填写音频文件ID');
+          return;
+        }
+
+        var result = await api('/api/users', {
+          method: 'POST',
+          body: JSON.stringify({ userId: userId, fileId: fileId, remainingTimes: remainingTimes })
+        });
+
+        if (!result.ok) {
+          setText(el.addError, (result.data && result.data.message) || '添加失败');
+          return;
+        }
+
+        el.newUserId.value = '';
+        el.newFileId.value = '';
+        el.newRemaining.value = '10';
+        setText(el.addMsg, '添加成功');
+        await loadAll();
+      }
+
+      function openFileModal(userId) {
+        var user = users.find(function (u) { return u.userId === userId; });
+        if (!user) return;
+        el.fileModalUserId.textContent = user.userId;
+        el.fileModalFileId.value = user.fileId || '';
+        show(el.fileModal);
+      }
+
+      async function saveFile() {
+        var userId = el.fileModalUserId.textContent;
+        var fileId = el.fileModalFileId.value.trim();
+        if (!fileId) {
+          alert('请填写音频文件ID');
+          return;
+        }
+        var result = await api('/api/users/' + encodeURIComponent(userId) + '/file', {
+          method: 'PUT',
+          body: JSON.stringify({ fileId: fileId })
+        });
+        if (!result.ok) {
+          alert((result.data && result.data.message) || '修改失败');
+          return;
+        }
+        hide(el.fileModal);
+        await loadAll();
+      }
+
+      function openRechargeModal(userId) {
+        el.rechargeModalUserId.textContent = userId;
+        el.rechargeTimes.value = '10';
+        show(el.rechargeModal);
+      }
+
+      async function saveRecharge() {
+        var userId = el.rechargeModalUserId.textContent;
+        var times = parseInt(el.rechargeTimes.value, 10);
+        if (!Number.isFinite(times) || times <= 0) {
+          alert('充值次数必须为正整数');
+          return;
+        }
+        var result = await api('/api/users/' + encodeURIComponent(userId) + '/recharge', {
+          method: 'POST',
+          body: JSON.stringify({ times: times })
+        });
+        if (!result.ok) {
+          alert((result.data && result.data.message) || '充值失败');
+          return;
+        }
+        hide(el.rechargeModal);
+        await loadAll();
+      }
+
+      async function deleteUser(userId) {
+        if (!confirm('确定删除用户「' + userId + '」？此操作不可恢复。')) return;
+        var result = await api('/api/users/' + encodeURIComponent(userId), { method: 'DELETE' });
+        if (!result.ok) {
+          alert((result.data && result.data.message) || '删除失败');
+          return;
+        }
+        await loadAll();
+      }
+
+      function copyLink(userId) {
+        var link = SHORT_LINK_BASE + userId;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(link).then(function () {
+            alert('已复制：' + link);
+          }).catch(function () {
+            prompt('请手动复制：', link);
+          });
+        } else {
+          prompt('请手动复制：', link);
+        }
+      }
+
+      el.loginBtn.addEventListener('click', login);
+      el.loginPassword.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') login();
+      });
+      el.logoutBtn.addEventListener('click', logout);
+      el.saveConfigBtn.addEventListener('click', saveConfig);
+      el.randomIdBtn.addEventListener('click', generateRandomId);
+      el.addUserBtn.addEventListener('click', addUser);
+      el.fileModalCancel.addEventListener('click', function () { hide(el.fileModal); });
+      el.fileModalSave.addEventListener('click', saveFile);
+      el.rechargeModalCancel.addEventListener('click', function () { hide(el.rechargeModal); });
+      el.rechargeModalSave.addEventListener('click', saveRecharge);
+
+      el.userTableBody.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        var action = btn.getAttribute('data-action');
+        var id = btn.getAttribute('data-id');
+        if (action === 'copy') copyLink(id);
+        if (action === 'file') openFileModal(id);
+        if (action === 'recharge') openRechargeModal(id);
+        if (action === 'delete') deleteUser(id);
+      });
+
+      el.fileModal.addEventListener('click', function (e) {
+        if (e.target === el.fileModal) hide(el.fileModal);
+      });
+      el.rechargeModal.addEventListener('click', function (e) {
+        if (e.target === el.rechargeModal) hide(el.rechargeModal);
+      });
+
+      checkSession();
+    })();
+  </script>
 </body>
 </html>
