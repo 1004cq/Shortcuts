@@ -2,20 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Crown, User, Shield } from "lucide-react";
+import { Link2, Crown, User, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 import { canManageUsers } from "@/lib/permissions";
 import type { SessionUser } from "@/types";
 
 const tabs = [
-  { href: "/", label: "文件", icon: LayoutGrid },
+  { href: "/", label: "短链接", icon: Link2 },
   { href: "/pricing", label: "会员", icon: Crown },
   { href: "/profile", label: "我的", icon: User },
 ];
 
 /**
- * Mobile bottom tab bar — replaces collapsed sidebar on small screens.
+ * Mobile bottom tab bar — shortlink-first navigation.
  */
 export function MobileTabBar() {
   const pathname = usePathname();

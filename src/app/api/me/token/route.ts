@@ -7,11 +7,10 @@ import {
   ensureShortlinkForMediaVaultUser,
 } from "@/lib/shortlink";
 import { User } from "@/models/User";
+import { FileModel } from "@/models/File";
 
 /**
- * GET /api/me/token — return the user's personal shortlink (creates one if absent).
- * The old token/download-template shape is preserved as a no-op alias for backward
- * compatibility but the primary payload is now the short URL.
+ * GET /api/me/token — alias of shortlink payload (creates one if absent).
  */
 export const GET = withApiHandler(async () => {
   const sessionUser = await requireAuth();
@@ -24,22 +23,28 @@ export const GET = withApiHandler(async () => {
     name: user?.name,
   });
 
-  const shortUrl = buildPublicShortUrl(shortlink.userId);
+  let fileName: string | null = null;
+  const fileId = shortlink.fileId ? String(shortlink.fileId) : null;
+  if (fileId) {
+    const file = await FileModel.findById(fileId)
+      .select("name originalName")
+      .lean();
+    fileName = file?.name || file?.originalName || null;
+  }
 
   return jsonOk({
-    shortUrl,
+    shortUrl: buildPublicShortUrl(shortlink.userId),
     shortlinkUserId: shortlink.userId,
+    fileId,
+    fileName,
     remainingTimes: shortlink.remainingTimes,
     usedTimes: shortlink.usedTimes,
-    hasAudio: Boolean(shortlink.fileId),
-    /** @deprecated kept for any older clients still reading these */
+    hasAudio: Boolean(fileId),
     token: null,
     canDownload: true,
     usage: null,
   });
 });
 
-/**
- * POST /api/me/token — no-op rotate kept for backward compat; returns same as GET.
- */
+/** POST /api/me/token — same as GET */
 export const POST = GET;

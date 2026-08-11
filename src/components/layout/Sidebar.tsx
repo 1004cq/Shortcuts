@@ -1,13 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
-  LayoutGrid,
-  Film,
-  Music,
-  FileText,
-  Image as ImageIcon,
+  Link2,
   Crown,
   Settings,
   Users,
@@ -15,21 +11,18 @@ import {
   HardDrive,
   ChevronLeft,
   Shield,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./SidebarContext";
 import { useSession } from "next-auth/react";
 import { canManageUsers } from "@/lib/permissions";
 import type { SessionUser } from "@/types";
-import { Suspense } from "react";
 
 const mainNav = [
-  { href: "/", label: "全部文件", icon: LayoutGrid, category: null as string | null },
-  { href: "/?category=video", label: "视频", icon: Film, category: "video" },
-  { href: "/?category=audio", label: "音频", icon: Music, category: "audio" },
-  { href: "/?category=document", label: "文档", icon: FileText, category: "document" },
-  { href: "/?category=image", label: "图片", icon: ImageIcon, category: "image" },
-  { href: "/pricing", label: "会员套餐", icon: Crown, category: null },
+  { href: "/", label: "短链接", icon: Link2 },
+  { href: "/profile", label: "我的", icon: User },
+  { href: "/pricing", label: "会员套餐", icon: Crown },
 ];
 
 const adminNav = [
@@ -39,10 +32,9 @@ const adminNav = [
   { href: "/admin/downloads", label: "下载统计", icon: Shield },
   { href: "/admin/settings", label: "系统设置", icon: Settings },
 ];
-function SidebarNav() {
+
+export function Sidebar() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const currentCategory = searchParams.get("category");
   const { collapsed, toggle, mobileOpen, setMobileOpen } = useSidebar();
   const { data } = useSession();
   const user = data?.user as SessionUser | undefined;
@@ -66,7 +58,7 @@ function SidebarNav() {
                 MediaVault
               </p>
               <p className="truncate text-[10px] uppercase tracking-widest text-muted-foreground">
-                Secure Media Hub
+                Shortlink Hub
               </p>
             </div>
           )}
@@ -76,15 +68,14 @@ function SidebarNav() {
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {!collapsed && (
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            浏览
+            用户
           </p>
         )}
-        {mainNav.map(({ href, label, icon: Icon, category }) => {
+        {mainNav.map(({ href, label, icon: Icon }) => {
           const highlighted =
-            href === "/pricing"
-              ? pathname.startsWith("/pricing")
-              : pathname === "/" &&
-                (category ? currentCategory === category : !currentCategory);
+            href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(href);
 
           return (
             <Link
@@ -151,16 +142,6 @@ function SidebarNav() {
           <ChevronLeft className={cn("h-4 w-4 transition-transform", collapsed && "rotate-180")} />
           {!collapsed && <span>收起侧栏</span>}
         </button>
-        {!collapsed && (
-          <Link
-            href="/profile"
-            onClick={() => setMobileOpen(false)}
-            className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
-          >
-            <Settings className="h-4 w-4" />
-            设置
-          </Link>
-        )}
       </div>
     </aside>
   );
@@ -182,13 +163,5 @@ function SidebarNav() {
         </div>
       )}
     </>
-  );
-}
-
-export function Sidebar() {
-  return (
-    <Suspense fallback={<div className="hidden w-60 shrink-0 border-r border-border md:block" />}>
-      <SidebarNav />
-    </Suspense>
   );
 }
