@@ -1,10 +1,18 @@
 [
   {
     "userId": "demo01",
-    "audioUrl": "https://example.com/audio/demo.mp3",
+    "fileId": "example-file-id-001",
     "remainingTimes": 10,
     "usedTimes": 0,
     "lastAccessTime": null,
     "createdAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "userId": "u1a2",
+    "fileId": "fid_new",
+    "remainingTimes": 5,
+    "usedTimes": 2,
+    "lastAccessTime": "2026-08-11T02:19:33.474Z",
+    "createdAt": "2026-08-11T02:19:33.470Z"
   }
 ]

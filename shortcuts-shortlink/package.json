@@ -1,7 +1,7 @@
 {
   "name": "shortcuts-shortlink",
-  "version": "2.0.0",
-  "description": "用户专属短链接音频控制系统（带次数计费）",
+  "version": "2.1.0",
+  "description": "用户专属短链接音频播放系统（按次计费 + 全局 Token 拼接下载地址）",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",

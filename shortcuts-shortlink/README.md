@@ -1,125 +1,96 @@
-# 用户专属短链接音频控制系统（带次数计费）
+# 用户专属短链接音频播放系统
 
-每个用户拥有固定专属短链接，通过苹果快捷指令访问即可播放音频；每成功播放一次扣除 1 次。管理员可在后台管理用户、切换音频、充值次数，并查看剩余次数与使用次数。
+每个用户拥有固定短链接 `https://cq.imim.chat/apl/{userId}`。用户在苹果快捷指令中只需填写该短链接；管理员在后台更换音频文件 ID 后，用户无需再改快捷指令。
 
-## 1. 项目结构
+## 项目结构
 
 ```text
 shortcuts-shortlink/
-├── app.js                 # Express 主程序（短链接扣次 + 管理 API）
-├── package.json           # 依赖与启动脚本
+├── app.js                 # Express 后端
+├── package.json
 ├── data/
-│   └── users.json         # 用户数据（JSON 文件存储）
+│   ├── users.json         # 用户数据
+│   └── config.json        # 全局 API Token
 ├── public/
-│   └── admin.html         # 管理员后台（单页面）
-└── README.md              # 本说明
+│   └── admin.html         # 管理后台单页
+└── README.md
 ```
 
-## 2. 短链接规则
+## 工作原理
 
-- 固定格式：`https://cq.imim.chat/apl/gt/{userId}`
-- 服务端路由：`GET /apl/gt/:userId`
-- 用户 ID：2–8 位，仅字母和数字（`a-z`、`A-Z`、`0-9`）
+1. 用户访问：`GET /apl/{userId}`
+2. 服务端检查剩余次数 ≥ 1
+3. 次数足够：`remainingTimes - 1`，`usedTimes + 1`，更新 `lastAccessTime`
+4. 使用「全局 API Token + 用户 fileId」拼接真实下载地址并 302 跳转：
 
-### 播放与扣次逻辑
+```text
+https://cq.imim.chat/api/files/{fileId}/download?token={apiToken}
+```
 
-1. 查找用户
-2. 检查剩余次数是否 ≥ 1
-3. 次数不足 → 返回纯文本「次数不足」
-4. 次数足够 → `remainingTimes - 1`，`usedTimes + 1`，更新 `lastAccessTime`
-5. `302` 重定向到当前 `audioUrl`
-
-## 3. 数据字段（users.json）
-
-| 字段 | 说明 |
-|------|------|
-| `userId` | 用户专属 ID |
-| `audioUrl` | 当前音频 URL |
-| `remainingTimes` | 剩余次数 |
-| `usedTimes` | 已使用次数 |
-| `lastAccessTime` | 最后访问时间（ISO 字符串，未访问为 `null`） |
-| `createdAt` | 创建时间 |
-
-## 4. 启动与使用
-
-### 安装依赖
+## 启动说明
 
 ```bash
 cd shortcuts-shortlink
 npm install
-```
-
-### 启动服务
-
-```bash
 npm start
 ```
 
-默认监听 `3005`（可用环境变量 `PORT` 覆盖）。
-
+- 默认端口：`3005`（可用环境变量 `PORT` 覆盖）
 - 管理后台：`http://localhost:3005/admin.html`
 - 默认账号：`admin` / `123456`
-- 本地短链接示例：`http://localhost:3005/apl/gt/demo01`
+- 本地短链接示例：`http://localhost:3005/apl/demo01`
 
-### 生产域名反代说明
+### 首次使用
 
-将 `https://cq.imim.chat/apl/` 反代到本服务（例如端口 `3005`），即可使用：
+1. 登录管理后台
+2. 在「全局 API Token 配置」中填入主站生成的 Token 并保存
+3. 添加用户：填写用户 ID（或随机生成）、音频文件 ID、初始次数
+4. 复制用户完整短链接发给用户
 
-```text
-https://cq.imim.chat/apl/gt/{userId}
-```
+### 生产反代
 
-## 5. 管理后台功能
+将 `https://cq.imim.chat/apl/` 反代到本服务（例如 `3005`），即可使用正式短链接。
 
-- 简单登录（写死账号密码）
-- 用户列表：用户ID、剩余次数、已使用次数、当前音频URL、最后访问时间
-- 添加用户：手动输入或一键随机生成用户ID；设置初始次数与音频URL
-- 修改用户音频
-- 给用户充值次数
-- 删除用户
-- 一键复制专属短链接
+## 苹果快捷指令配置方法（用户只需填写短链接）
 
-## 6. 苹果快捷指令配置方法
-
-1. 打开 iPhone「快捷指令」App → 点右上角「+」新建快捷指令  
-2. 添加操作「获取 URL 的内容」（或「获取文件」）  
-3. URL 填写用户专属短链接，例如：
+1. 打开 iPhone「快捷指令」→ 新建快捷指令  
+2. 添加操作：**获取 URL 的内容**  
+3. URL 填写自己的固定短链接，例如：
 
    ```text
-   https://cq.imim.chat/apl/gt/demo01
+   https://cq.imim.chat/apl/demo01
    ```
 
-4. （推荐）再添加「播放声音」/「播放媒体」操作，把上一步获取到的内容作为音频输入  
-5. 更稳妥的原生播放方式（适合自动播放）：
+4. 再添加：**播放声音**（或「播放媒体」），把上一步获取到的内容作为音频输入  
+5. 完成。之后管理员在后台更换该用户的音频文件 ID，用户**不需要再改**快捷指令  
 
-   - 添加「获取 URL 的内容」  
-   - 高级选项里如有重定向相关设置，保持允许跟随重定向  
-   - 或使用「打开 URL」+ 系统播放器（视 iOS 版本与场景选择）  
-   - 常见可靠组合：  
-     1）获取 URL 内容（音频）→ 2）播放声音  
+### 可选说明
 
-6. 将快捷指令设为桌面图标或锁屏小组件，用户每次点按即访问短链接并扣 1 次  
+- 快捷指令应允许跟随重定向（默认一般允许），因为短链接会 302 到真实下载地址  
+- 次数不足时，接口返回 HTTP `403`，正文为「次数不足」
 
-### 次数不足时的表现
+## 管理后台功能
 
-当剩余次数为 0 时，短链接返回 HTTP `403`，正文为：
+- 登录（账号密码写死）
+- 配置全局 API Token
+- 用户列表：用户ID、剩余次数、已使用次数、音频文件ID、最后访问时间
+- 添加用户（2–8 位字母数字，可随机生成）
+- 单独更换用户音频（fileId）
+- 充值次数
+- 删除用户
+- 一键复制完整短链接 `https://cq.imim.chat/apl/{userId}`
 
-```text
-次数不足
-```
-
-可在快捷指令中根据错误提示用户联系管理员充值。
-
-## 7. API 一览（管理员需登录 Cookie）
+## API 一览
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/api/login` | 管理员登录 |
-| POST | `/api/logout` | 退出登录 |
+| POST | `/api/logout` | 退出 |
+| GET/POST | `/api/config` | 读取/保存全局 Token |
 | GET | `/api/users` | 用户列表 |
-| GET | `/api/users/random-id` | 随机生成可用用户ID |
+| GET | `/api/users/random-id` | 随机用户ID |
 | POST | `/api/users` | 添加用户 |
-| PUT | `/api/users/:userId/audio` | 修改音频 |
+| PUT | `/api/users/:userId/file` | 更换音频 fileId |
 | POST | `/api/users/:userId/recharge` | 充值次数 |
 | DELETE | `/api/users/:userId` | 删除用户 |
-| GET | `/apl/gt/:userId` | 短链接播放并扣次 |
+| GET | `/apl/:userId` | 短链接播放并扣次 |

@@ -1,8 +1,9 @@
 /**
- * 用户专属短链接音频控制系统（带次数计费）
+ * 用户专属短链接音频播放系统
  *
- * 短链接格式：https://cq.imim.chat/apl/gt/{userId}
- * 每次成功播放扣除 1 次，次数不足返回「次数不足」
+ * 短链接格式：https://cq.imim.chat/apl/{userId}
+ * 访问流程：检查次数 → 扣 1 次 → 302 重定向到音频下载地址
+ * 音频下载地址由「全局 API Token + 用户 fileId」拼接而成
  */
 
 const express = require('express');
@@ -14,9 +15,13 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3005;
 
-/** 数据目录与用户 JSON 文件 */
+/** 数据目录 */
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+
+/** 主站音频下载地址前缀（与全局 Token、fileId 拼接） */
+const DOWNLOAD_BASE = process.env.DOWNLOAD_BASE || 'https://cq.imim.chat/api/files';
 
 /** 管理员账号密码（写死） */
 const ADMIN_CONFIG = {
@@ -30,42 +35,50 @@ const USER_ID_REGEXP = /^[a-zA-Z0-9]{2,8}$/;
 // ---------- 中间件 ----------
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser('shortcuts_shortlink_secret_v1'));
+app.use(cookieParser('shortcuts_shortlink_secret_v2'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- 数据层 ----------
 
-/** 确保 data 目录与 users.json 存在 */
+/** 确保 data 目录、users.json、config.json 存在 */
 async function initFiles() {
   await fs.ensureDir(DATA_DIR);
   if (!(await fs.pathExists(USERS_FILE))) {
     await fs.outputJson(USERS_FILE, [], { spaces: 2 });
   }
+  if (!(await fs.pathExists(CONFIG_FILE))) {
+    await fs.outputJson(CONFIG_FILE, { apiToken: '' }, { spaces: 2 });
+  }
 }
 
-/** 读取全部用户 */
 async function getUsers() {
   return await fs.readJson(USERS_FILE);
 }
 
-/** 保存全部用户 */
 async function saveUsers(users) {
   await fs.writeJson(USERS_FILE, users, { spaces: 2 });
 }
 
-/** 校验用户 ID 规则 */
+async function getConfig() {
+  return await fs.readJson(CONFIG_FILE);
+}
+
+async function saveConfig(config) {
+  await fs.writeJson(CONFIG_FILE, config, { spaces: 2 });
+}
+
+/** 校验用户 ID */
 function isValidUserId(userId) {
   return typeof userId === 'string' && USER_ID_REGEXP.test(userId);
 }
 
 /**
  * 生成符合规则的随机用户 ID（长度 2–8）
- * @param {string[]} existingIds 已占用 ID，用于避免冲突
+ * @param {string[]} existingIds 已占用 ID
  */
 function generateRandomUserId(existingIds = []) {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const existing = new Set(existingIds);
-  // 最多尝试若干次，避免极端冲突
   for (let attempt = 0; attempt < 100; attempt++) {
     const length = 2 + Math.floor(Math.random() * 7); // 2..8
     let id = '';
@@ -74,12 +87,20 @@ function generateRandomUserId(existingIds = []) {
     }
     if (!existing.has(id)) return id;
   }
-  // 兜底：固定 8 位 + 时间戳尾部（仍尽量满足字母数字）
-  const fallback = `u${Date.now().toString(36)}`.slice(0, 8);
-  return fallback;
+  return `u${Date.now().toString(36)}`.slice(0, 8);
 }
 
-/** 管理员鉴权中间件（基于 signed cookie） */
+/**
+ * 根据 fileId + 全局 Token 拼接真实音频下载链接
+ * 格式：https://cq.imim.chat/api/files/{fileId}/download?token={apiToken}
+ */
+function buildDownloadUrl(fileId, apiToken) {
+  const id = encodeURIComponent(String(fileId).trim());
+  const token = encodeURIComponent(String(apiToken).trim());
+  return `${DOWNLOAD_BASE}/${id}/download?token=${token}`;
+}
+
+/** 管理员鉴权（signed cookie） */
 function authMiddleware(req, res, next) {
   if (req.signedCookies.is_admin === 'true') {
     return next();
@@ -87,17 +108,17 @@ function authMiddleware(req, res, next) {
   return res.status(403).json({ success: false, message: '未授权' });
 }
 
-// ---------- 短链接播放（扣次） ----------
+// ---------- 短链接播放（扣次后重定向） ----------
 
 /**
- * GET /apl/gt/:userId
+ * GET /apl/:userId
  * 1. 查找用户
  * 2. 检查剩余次数 ≥ 1
- * 3. 不足 →「次数不足」
- * 4. 足够 → remaining-1 / used+1 / 更新 lastAccessTime
- * 5. 302 重定向到当前 audioUrl
+ * 3. 检查已绑定 fileId、全局 apiToken
+ * 4. remainingTimes-1 / usedTimes+1 / 更新 lastAccessTime
+ * 5. 302 重定向到真实音频下载地址
  */
-app.get('/apl/gt/:userId', async (req, res) => {
+app.get('/apl/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -105,7 +126,7 @@ app.get('/apl/gt/:userId', async (req, res) => {
       return res.status(400).send('用户ID无效');
     }
 
-    const users = await getUsers();
+    const [users, config] = await Promise.all([getUsers(), getConfig()]);
     const userIndex = users.findIndex((u) => u.userId === userId);
 
     if (userIndex === -1) {
@@ -114,14 +135,16 @@ app.get('/apl/gt/:userId', async (req, res) => {
 
     const user = users[userIndex];
 
-    // 次数不足
     if (!user.remainingTimes || user.remainingTimes < 1) {
       return res.status(403).send('次数不足');
     }
 
-    // 未配置音频
-    if (!user.audioUrl || typeof user.audioUrl !== 'string') {
+    if (!user.fileId) {
       return res.status(404).send('该用户未绑定音频');
+    }
+
+    if (!config.apiToken) {
+      return res.status(500).send('系统 Token 未配置');
     }
 
     // 扣次 + 统计
@@ -131,8 +154,8 @@ app.get('/apl/gt/:userId', async (req, res) => {
     users[userIndex] = user;
     await saveUsers(users);
 
-    // 重定向到当前音频 URL
-    return res.redirect(user.audioUrl);
+    const longUrl = buildDownloadUrl(user.fileId, config.apiToken);
+    return res.redirect(longUrl);
   } catch (error) {
     console.error('[短链接播放错误]', error);
     return res.status(500).send('服务器内部错误');
@@ -141,7 +164,7 @@ app.get('/apl/gt/:userId', async (req, res) => {
 
 // ---------- 管理员登录 ----------
 
-/** POST /api/login — 简单账号密码登录 */
+/** POST /api/login */
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body || {};
   if (username === ADMIN_CONFIG.username && password === ADMIN_CONFIG.password) {
@@ -155,19 +178,42 @@ app.post('/api/login', (req, res) => {
   return res.status(401).json({ success: false, message: '账号或密码错误' });
 });
 
-/** POST /api/logout — 退出登录 */
+/** POST /api/logout */
 app.post('/api/logout', (req, res) => {
   res.clearCookie('is_admin');
   return res.json({ success: true });
 });
 
-// ---------- 管理 API ----------
+// ---------- 全局配置（API Token） ----------
+
+/** GET /api/config */
+app.get('/api/config', authMiddleware, async (req, res) => {
+  try {
+    return res.json(await getConfig());
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: '读取配置失败' });
+  }
+});
+
+/** POST /api/config — 保存全局 API Token */
+app.post('/api/config', authMiddleware, async (req, res) => {
+  try {
+    const apiToken = String((req.body || {}).apiToken || '').trim();
+    await saveConfig({ apiToken });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: '保存配置失败' });
+  }
+});
+
+// ---------- 用户管理 API ----------
 
 /** GET /api/users — 用户列表 */
 app.get('/api/users', authMiddleware, async (req, res) => {
   try {
-    const users = await getUsers();
-    return res.json(users);
+    return res.json(await getUsers());
   } catch (error) {
     console.error(error);
     return res.status(500).json({ success: false, message: '读取用户失败' });
@@ -188,11 +234,11 @@ app.get('/api/users/random-id', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/users — 添加新用户
- * body: { userId, audioUrl, remainingTimes }
+ * body: { userId, fileId, remainingTimes }
  */
 app.post('/api/users', authMiddleware, async (req, res) => {
   try {
-    const { userId, audioUrl, remainingTimes } = req.body || {};
+    const { userId, fileId, remainingTimes } = req.body || {};
 
     if (!isValidUserId(userId)) {
       return res.status(400).json({
@@ -201,8 +247,8 @@ app.post('/api/users', authMiddleware, async (req, res) => {
       });
     }
 
-    if (!audioUrl || typeof audioUrl !== 'string' || !audioUrl.trim()) {
-      return res.status(400).json({ success: false, message: '请填写音频URL' });
+    if (!fileId || !String(fileId).trim()) {
+      return res.status(400).json({ success: false, message: '请填写音频文件ID' });
     }
 
     const users = await getUsers();
@@ -213,7 +259,7 @@ app.post('/api/users', authMiddleware, async (req, res) => {
     const times = parseInt(remainingTimes, 10);
     const newUser = {
       userId,
-      audioUrl: audioUrl.trim(),
+      fileId: String(fileId).trim(),
       remainingTimes: Number.isFinite(times) && times >= 0 ? times : 0,
       usedTimes: 0,
       lastAccessTime: null,
@@ -230,16 +276,16 @@ app.post('/api/users', authMiddleware, async (req, res) => {
 });
 
 /**
- * PUT /api/users/:userId/audio — 修改用户音频 URL
- * body: { audioUrl }
+ * PUT /api/users/:userId/file — 为用户单独切换/更换音频（fileId）
+ * body: { fileId }
  */
-app.put('/api/users/:userId/audio', authMiddleware, async (req, res) => {
+app.put('/api/users/:userId/file', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { audioUrl } = req.body || {};
+    const fileId = String((req.body || {}).fileId || '').trim();
 
-    if (!audioUrl || typeof audioUrl !== 'string' || !audioUrl.trim()) {
-      return res.status(400).json({ success: false, message: '请填写音频URL' });
+    if (!fileId) {
+      return res.status(400).json({ success: false, message: '请填写音频文件ID' });
     }
 
     const users = await getUsers();
@@ -248,7 +294,7 @@ app.put('/api/users/:userId/audio', authMiddleware, async (req, res) => {
       return res.status(404).json({ success: false, message: '用户不存在' });
     }
 
-    users[userIndex].audioUrl = audioUrl.trim();
+    users[userIndex].fileId = fileId;
     await saveUsers(users);
     return res.json({ success: true, user: users[userIndex] });
   } catch (error) {
@@ -258,7 +304,7 @@ app.put('/api/users/:userId/audio', authMiddleware, async (req, res) => {
 });
 
 /**
- * POST /api/users/:userId/recharge — 给用户增加次数（充值）
+ * POST /api/users/:userId/recharge — 给用户充值次数
  * body: { times }
  */
 app.post('/api/users/:userId/recharge', authMiddleware, async (req, res) => {
@@ -308,8 +354,8 @@ app.delete('/api/users/:userId', authMiddleware, async (req, res) => {
 
 initFiles().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`短链接音频控制系统已启动: http://0.0.0.0:${PORT}`);
-    console.log(`短链接格式: https://cq.imim.chat/apl/gt/{userId}`);
+    console.log(`短链接音频播放系统已启动: http://0.0.0.0:${PORT}`);
+    console.log(`短链接格式: https://cq.imim.chat/apl/{userId}`);
     console.log(`管理后台: http://0.0.0.0:${PORT}/admin.html`);
     console.log(`默认管理员: admin / 123456`);
   });

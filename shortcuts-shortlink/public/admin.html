@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>短链接音频控制系统 - 管理后台</title>
+  <title>短链接音频播放系统 - 管理后台</title>
   <style>
     :root {
       --bg: #f0f3f7;
@@ -15,8 +15,10 @@
       --primary-hover: #1d4ed8;
       --success: #059669;
       --danger: #dc2626;
-      --warn-bg: #ecfdf5;
-      --warn-border: #a7f3d0;
+      --tip-bg: #ecfdf5;
+      --tip-border: #a7f3d0;
+      --cfg-bg: #fff7ed;
+      --cfg-border: #fed7aa;
     }
 
     * { box-sizing: border-box; }
@@ -39,16 +41,8 @@
       box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
     }
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 22px;
-      text-align: center;
-    }
-
-    h2 {
-      margin: 0 0 12px;
-      font-size: 16px;
-    }
+    h1 { margin: 0 0 8px; font-size: 22px; text-align: center; }
+    h2 { margin: 0 0 12px; font-size: 16px; }
 
     .subtitle {
       text-align: center;
@@ -59,26 +53,19 @@
 
     .hidden { display: none !important; }
 
-    /* 登录 */
     .login-box {
       max-width: 340px;
       margin: 80px auto;
       text-align: center;
     }
 
-    .login-box input {
-      width: 100%;
-      margin: 8px 0;
-    }
+    .login-box input { width: 100%; margin: 8px 0; }
 
-    input, button, textarea {
-      font: inherit;
-    }
+    input, button { font: inherit; }
 
     input[type="text"],
     input[type="password"],
-    input[type="number"],
-    input[type="url"] {
+    input[type="number"] {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--line);
@@ -137,8 +124,13 @@
     }
 
     .section.tip {
-      background: var(--warn-bg);
-      border-color: var(--warn-border);
+      background: var(--tip-bg);
+      border-color: var(--tip-border);
+    }
+
+    .section.config {
+      background: var(--cfg-bg);
+      border-color: var(--cfg-border);
     }
 
     .short-link {
@@ -152,17 +144,21 @@
       font-size: 14px;
     }
 
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1.2fr auto 1.6fr 0.7fr auto;
+    .form-inline {
+      display: flex;
       gap: 10px;
+      flex-wrap: wrap;
       align-items: center;
     }
+
+    .form-inline input { flex: 1; min-width: 140px; margin: 0; }
 
     .id-group {
       display: flex;
       gap: 8px;
       align-items: center;
+      flex: 1.2;
+      min-width: 220px;
     }
 
     .table-wrap { overflow-x: auto; }
@@ -204,17 +200,11 @@
       word-break: break-all;
     }
 
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
+    .actions { display: flex; flex-wrap: wrap; gap: 6px; }
     .muted { color: var(--muted); font-size: 12px; }
     .error { color: var(--danger); font-size: 13px; margin-top: 8px; }
     .msg { color: var(--success); font-size: 13px; margin-top: 8px; }
 
-    /* 简易弹层 */
     .modal-mask {
       position: fixed;
       inset: 0;
@@ -245,11 +235,10 @@
     }
 
     @media (max-width: 800px) {
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
       body { padding: 10px; }
       .container { padding: 16px; }
+      .form-inline { flex-direction: column; align-items: stretch; }
+      .id-group { width: 100%; min-width: 0; }
     }
   </style>
 </head>
@@ -258,7 +247,7 @@
     <!-- 登录 -->
     <div id="loginView" class="login-box">
       <h1>管理员登录</h1>
-      <p class="subtitle">短链接音频控制系统</p>
+      <p class="subtitle">用户专属短链接音频播放系统</p>
       <input id="loginUsername" type="text" placeholder="账号" autocomplete="username" value="admin">
       <input id="loginPassword" type="password" placeholder="密码" autocomplete="current-password">
       <button class="btn-block" id="loginBtn" style="margin-top:12px">登录</button>
@@ -269,29 +258,45 @@
     <div id="mainView" class="hidden">
       <div class="topbar">
         <div>
-          <h1 style="text-align:left;margin:0">短链接音频控制系统</h1>
-          <div class="muted">用户专属短链接 · 按次计费</div>
+          <h1 style="text-align:left;margin:0">短链接音频播放系统</h1>
+          <div class="muted">固定短链接 · 按次计费 · 后台换音频</div>
         </div>
         <button class="btn-secondary btn-sm" id="logoutBtn">退出登录</button>
       </div>
 
       <div class="section tip">
         <h2>短链接说明</h2>
-        <p class="muted" style="margin:0 0 6px">用户在苹果快捷指令中填写固定专属链接：</p>
-        <div class="short-link">https://cq.imim.chat/apl/gt/{userId}</div>
-        <p class="muted" style="margin:0">每次成功播放扣除 1 次；次数不足时返回「次数不足」。</p>
+        <p class="muted" style="margin:0 0 6px">用户在苹果快捷指令中只需填写自己的固定短链接：</p>
+        <div class="short-link">https://cq.imim.chat/apl/{userId}</div>
+        <p class="muted" style="margin:0">
+          示例：https://cq.imim.chat/apl/demo01<br>
+          访问后自动扣 1 次，并重定向到当前绑定音频的下载地址。用户以后换音频无需修改快捷指令。
+        </p>
+      </div>
+
+      <div class="section config">
+        <h2>1. 全局 API Token 配置</h2>
+        <p class="muted" style="margin:0 0 10px">
+          用于拼接真实下载链接：
+          <code>https://cq.imim.chat/api/files/{fileId}/download?token=Token</code>
+        </p>
+        <div class="form-inline">
+          <input id="apiToken" type="text" placeholder="输入主站生成的 API Token">
+          <button type="button" class="btn-sm" id="saveConfigBtn">保存 Token</button>
+        </div>
+        <div id="configMsg" class="msg hidden"></div>
+        <div id="configError" class="error hidden"></div>
       </div>
 
       <div class="section">
-        <h2>添加新用户</h2>
-        <div class="form-grid">
+        <h2>2. 添加新用户</h2>
+        <div class="form-inline">
           <div class="id-group">
             <input id="newUserId" type="text" placeholder="用户ID（2-8位字母数字）" maxlength="8">
             <button type="button" class="btn-outline btn-sm" id="randomIdBtn">随机生成</button>
           </div>
-          <span class="muted" style="display:none"></span>
-          <input id="newAudioUrl" type="url" placeholder="音频URL（https://...）">
-          <input id="newRemaining" type="number" min="0" step="1" placeholder="初始次数" value="10">
+          <input id="newFileId" type="text" placeholder="音频文件ID">
+          <input id="newRemaining" type="number" min="0" step="1" placeholder="初始次数" value="10" style="max-width:120px;flex:0 0 120px">
           <button type="button" id="addUserBtn">添加</button>
         </div>
         <div id="addMsg" class="msg hidden"></div>
@@ -300,7 +305,7 @@
 
       <div class="section" style="background:#fff;padding:0;overflow:hidden">
         <div style="padding:16px 16px 0">
-          <h2>用户列表 <span class="muted" id="userCount"></span></h2>
+          <h2>3. 用户列表 <span class="muted" id="userCount"></span></h2>
         </div>
         <div class="table-wrap">
           <table>
@@ -309,7 +314,7 @@
                 <th>用户ID</th>
                 <th>剩余次数</th>
                 <th>已使用次数</th>
-                <th>当前音频URL</th>
+                <th>音频文件ID</th>
                 <th>最后访问时间</th>
                 <th>操作</th>
               </tr>
@@ -324,16 +329,16 @@
   </div>
 
   <!-- 修改音频弹窗 -->
-  <div id="audioModal" class="modal-mask hidden">
+  <div id="fileModal" class="modal-mask hidden">
     <div class="modal">
-      <h3>修改音频</h3>
-      <div class="row muted">用户ID：<strong id="audioModalUserId"></strong></div>
+      <h3>更换音频</h3>
+      <div class="row muted">用户ID：<strong id="fileModalUserId"></strong></div>
       <div class="row">
-        <input id="audioModalUrl" type="url" placeholder="新的音频URL">
+        <input id="fileModalFileId" type="text" placeholder="新的音频文件ID">
       </div>
       <div class="modal-actions">
-        <button class="btn-secondary" type="button" id="audioModalCancel">取消</button>
-        <button type="button" id="audioModalSave">保存</button>
+        <button class="btn-secondary" type="button" id="fileModalCancel">取消</button>
+        <button type="button" id="fileModalSave">保存</button>
       </div>
     </div>
   </div>
@@ -355,10 +360,10 @@
 
   <script>
     (function () {
-      const SHORT_LINK_BASE = 'https://cq.imim.chat/apl/gt/';
-      const USER_ID_REGEXP = /^[a-zA-Z0-9]{2,8}$/;
+      var SHORT_LINK_BASE = 'https://cq.imim.chat/apl/';
+      var USER_ID_REGEXP = /^[a-zA-Z0-9]{2,8}$/;
 
-      const el = {
+      var el = {
         loginView: document.getElementById('loginView'),
         mainView: document.getElementById('mainView'),
         loginUsername: document.getElementById('loginUsername'),
@@ -366,8 +371,12 @@
         loginBtn: document.getElementById('loginBtn'),
         loginError: document.getElementById('loginError'),
         logoutBtn: document.getElementById('logoutBtn'),
+        apiToken: document.getElementById('apiToken'),
+        saveConfigBtn: document.getElementById('saveConfigBtn'),
+        configMsg: document.getElementById('configMsg'),
+        configError: document.getElementById('configError'),
         newUserId: document.getElementById('newUserId'),
-        newAudioUrl: document.getElementById('newAudioUrl'),
+        newFileId: document.getElementById('newFileId'),
         newRemaining: document.getElementById('newRemaining'),
         randomIdBtn: document.getElementById('randomIdBtn'),
         addUserBtn: document.getElementById('addUserBtn'),
@@ -375,11 +384,11 @@
         addError: document.getElementById('addError'),
         userTableBody: document.getElementById('userTableBody'),
         userCount: document.getElementById('userCount'),
-        audioModal: document.getElementById('audioModal'),
-        audioModalUserId: document.getElementById('audioModalUserId'),
-        audioModalUrl: document.getElementById('audioModalUrl'),
-        audioModalCancel: document.getElementById('audioModalCancel'),
-        audioModalSave: document.getElementById('audioModalSave'),
+        fileModal: document.getElementById('fileModal'),
+        fileModalUserId: document.getElementById('fileModalUserId'),
+        fileModalFileId: document.getElementById('fileModalFileId'),
+        fileModalCancel: document.getElementById('fileModalCancel'),
+        fileModalSave: document.getElementById('fileModalSave'),
         rechargeModal: document.getElementById('rechargeModal'),
         rechargeModalUserId: document.getElementById('rechargeModalUserId'),
         rechargeTimes: document.getElementById('rechargeTimes'),
@@ -387,17 +396,14 @@
         rechargeModalSave: document.getElementById('rechargeModalSave')
       };
 
-      let users = [];
+      var users = [];
 
       function show(node) { node.classList.remove('hidden'); }
       function hide(node) { node.classList.add('hidden'); }
 
-      function setText(node, text, isError) {
+      function setText(node, text) {
         node.textContent = text || '';
         if (text) show(node); else hide(node);
-        if (typeof isError === 'boolean') {
-          // no-op placeholder for clarity
-        }
       }
 
       function formatDate(iso) {
@@ -419,15 +425,15 @@
       }
 
       async function api(url, options) {
-        const res = await fetch(url, {
+        options = options || {};
+        var res = await fetch(url, Object.assign({
           credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', ...(options && options.headers) },
-          ...options
-        });
-        let data = null;
-        const text = await res.text();
+          headers: Object.assign({ 'Content-Type': 'application/json' }, options.headers || {})
+        }, options));
+        var text = await res.text();
+        var data = null;
         try { data = text ? JSON.parse(text) : null; } catch (e) { data = { message: text }; }
-        return { ok: res.ok, status: res.status, data };
+        return { ok: res.ok, status: res.status, data: data };
       }
 
       function showLogin() {
@@ -441,10 +447,10 @@
       }
 
       async function checkSession() {
-        const { ok } = await api('/api/users');
-        if (ok) {
+        var result = await api('/api/users');
+        if (result.ok) {
           showMain();
-          await loadUsers();
+          await loadAll();
         } else {
           showLogin();
         }
@@ -452,18 +458,19 @@
 
       async function login() {
         setText(el.loginError, '');
-        const username = el.loginUsername.value.trim();
-        const password = el.loginPassword.value;
-        const { ok, data } = await api('/api/login', {
+        var result = await api('/api/login', {
           method: 'POST',
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({
+            username: el.loginUsername.value.trim(),
+            password: el.loginPassword.value
+          })
         });
-        if (!ok) {
-          setText(el.loginError, (data && data.message) || '登录失败');
+        if (!result.ok) {
+          setText(el.loginError, (result.data && result.data.message) || '登录失败');
           return;
         }
         showMain();
-        await loadUsers();
+        await loadAll();
       }
 
       async function logout() {
@@ -471,15 +478,23 @@
         showLogin();
       }
 
-      async function loadUsers() {
-        const { ok, data, status } = await api('/api/users');
-        if (!ok) {
-          if (status === 403) showLogin();
+      async function loadAll() {
+        var results = await Promise.all([api('/api/users'), api('/api/config')]);
+        var uRes = results[0];
+        var cRes = results[1];
+
+        if (!uRes.ok) {
+          if (uRes.status === 403) showLogin();
           el.userTableBody.innerHTML = '<tr><td colspan="6" class="error">加载失败</td></tr>';
           return;
         }
-        users = Array.isArray(data) ? data : [];
+
+        users = Array.isArray(uRes.data) ? uRes.data : [];
         renderUsers();
+
+        if (cRes.ok && cRes.data) {
+          el.apiToken.value = cRes.data.apiToken || '';
+        }
       }
 
       function renderUsers() {
@@ -490,17 +505,18 @@
         }
 
         el.userTableBody.innerHTML = users.map(function (u) {
-          const link = SHORT_LINK_BASE + encodeURIComponent(u.userId);
+          var link = SHORT_LINK_BASE + encodeURIComponent(u.userId);
           return (
             '<tr>' +
-              '<td><strong>' + escapeHtml(u.userId) + '</strong><div class="muted mono">' + escapeHtml(link) + '</div></td>' +
+              '<td><strong>' + escapeHtml(u.userId) + '</strong>' +
+                '<div class="muted mono">' + escapeHtml(link) + '</div></td>' +
               '<td><span class="badge badge-remaining">' + escapeHtml(u.remainingTimes) + '</span></td>' +
               '<td><span class="badge badge-used">' + escapeHtml(u.usedTimes || 0) + '</span></td>' +
-              '<td class="mono">' + escapeHtml(u.audioUrl || '') + '</td>' +
+              '<td class="mono">' + escapeHtml(u.fileId || '') + '</td>' +
               '<td class="muted">' + escapeHtml(formatDate(u.lastAccessTime)) + '</td>' +
               '<td><div class="actions">' +
                 '<button class="btn-sm btn-outline" data-action="copy" data-id="' + escapeHtml(u.userId) + '">复制链接</button>' +
-                '<button class="btn-sm" data-action="audio" data-id="' + escapeHtml(u.userId) + '">改音频</button>' +
+                '<button class="btn-sm" data-action="file" data-id="' + escapeHtml(u.userId) + '">换音频</button>' +
                 '<button class="btn-sm btn-success" data-action="recharge" data-id="' + escapeHtml(u.userId) + '">充次</button>' +
                 '<button class="btn-sm btn-danger" data-action="delete" data-id="' + escapeHtml(u.userId) + '">删除</button>' +
               '</div></td>' +
@@ -509,18 +525,31 @@
         }).join('');
       }
 
-      async function generateRandomId() {
-        setText(el.addError, '');
-        const { ok, data } = await api('/api/users/random-id');
-        if (ok && data && data.userId) {
-          el.newUserId.value = data.userId;
+      async function saveConfig() {
+        setText(el.configMsg, '');
+        setText(el.configError, '');
+        var result = await api('/api/config', {
+          method: 'POST',
+          body: JSON.stringify({ apiToken: el.apiToken.value.trim() })
+        });
+        if (!result.ok) {
+          setText(el.configError, (result.data && result.data.message) || '保存失败');
           return;
         }
-        // 前端兜底：本地生成 2–8 位
-        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        const len = 2 + Math.floor(Math.random() * 7);
-        let id = '';
-        for (let i = 0; i < len; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+        setText(el.configMsg, 'Token 已保存');
+      }
+
+      async function generateRandomId() {
+        setText(el.addError, '');
+        var result = await api('/api/users/random-id');
+        if (result.ok && result.data && result.data.userId) {
+          el.newUserId.value = result.data.userId;
+          return;
+        }
+        var chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        var len = 2 + Math.floor(Math.random() * 7);
+        var id = '';
+        for (var i = 0; i < len; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
         el.newUserId.value = id;
       }
 
@@ -528,61 +557,61 @@
         setText(el.addMsg, '');
         setText(el.addError, '');
 
-        const userId = el.newUserId.value.trim();
-        const audioUrl = el.newAudioUrl.value.trim();
-        const remainingTimes = el.newRemaining.value;
+        var userId = el.newUserId.value.trim();
+        var fileId = el.newFileId.value.trim();
+        var remainingTimes = el.newRemaining.value;
 
         if (!USER_ID_REGEXP.test(userId)) {
           setText(el.addError, '用户ID需为2-8位字母或数字（a-z、A-Z、0-9）');
           return;
         }
-        if (!audioUrl) {
-          setText(el.addError, '请填写音频URL');
+        if (!fileId) {
+          setText(el.addError, '请填写音频文件ID');
           return;
         }
 
-        const { ok, data } = await api('/api/users', {
+        var result = await api('/api/users', {
           method: 'POST',
-          body: JSON.stringify({ userId, audioUrl, remainingTimes })
+          body: JSON.stringify({ userId: userId, fileId: fileId, remainingTimes: remainingTimes })
         });
 
-        if (!ok) {
-          setText(el.addError, (data && data.message) || '添加失败');
+        if (!result.ok) {
+          setText(el.addError, (result.data && result.data.message) || '添加失败');
           return;
         }
 
         el.newUserId.value = '';
-        el.newAudioUrl.value = '';
+        el.newFileId.value = '';
         el.newRemaining.value = '10';
         setText(el.addMsg, '添加成功');
-        await loadUsers();
+        await loadAll();
       }
 
-      function openAudioModal(userId) {
-        const user = users.find(function (u) { return u.userId === userId; });
+      function openFileModal(userId) {
+        var user = users.find(function (u) { return u.userId === userId; });
         if (!user) return;
-        el.audioModalUserId.textContent = user.userId;
-        el.audioModalUrl.value = user.audioUrl || '';
-        show(el.audioModal);
+        el.fileModalUserId.textContent = user.userId;
+        el.fileModalFileId.value = user.fileId || '';
+        show(el.fileModal);
       }
 
-      async function saveAudio() {
-        const userId = el.audioModalUserId.textContent;
-        const audioUrl = el.audioModalUrl.value.trim();
-        if (!audioUrl) {
-          alert('请填写音频URL');
+      async function saveFile() {
+        var userId = el.fileModalUserId.textContent;
+        var fileId = el.fileModalFileId.value.trim();
+        if (!fileId) {
+          alert('请填写音频文件ID');
           return;
         }
-        const { ok, data } = await api('/api/users/' + encodeURIComponent(userId) + '/audio', {
+        var result = await api('/api/users/' + encodeURIComponent(userId) + '/file', {
           method: 'PUT',
-          body: JSON.stringify({ audioUrl })
+          body: JSON.stringify({ fileId: fileId })
         });
-        if (!ok) {
-          alert((data && data.message) || '修改失败');
+        if (!result.ok) {
+          alert((result.data && result.data.message) || '修改失败');
           return;
         }
-        hide(el.audioModal);
-        await loadUsers();
+        hide(el.fileModal);
+        await loadAll();
       }
 
       function openRechargeModal(userId) {
@@ -592,36 +621,36 @@
       }
 
       async function saveRecharge() {
-        const userId = el.rechargeModalUserId.textContent;
-        const times = parseInt(el.rechargeTimes.value, 10);
+        var userId = el.rechargeModalUserId.textContent;
+        var times = parseInt(el.rechargeTimes.value, 10);
         if (!Number.isFinite(times) || times <= 0) {
           alert('充值次数必须为正整数');
           return;
         }
-        const { ok, data } = await api('/api/users/' + encodeURIComponent(userId) + '/recharge', {
+        var result = await api('/api/users/' + encodeURIComponent(userId) + '/recharge', {
           method: 'POST',
-          body: JSON.stringify({ times })
+          body: JSON.stringify({ times: times })
         });
-        if (!ok) {
-          alert((data && data.message) || '充值失败');
+        if (!result.ok) {
+          alert((result.data && result.data.message) || '充值失败');
           return;
         }
         hide(el.rechargeModal);
-        await loadUsers();
+        await loadAll();
       }
 
       async function deleteUser(userId) {
         if (!confirm('确定删除用户「' + userId + '」？此操作不可恢复。')) return;
-        const { ok, data } = await api('/api/users/' + encodeURIComponent(userId), { method: 'DELETE' });
-        if (!ok) {
-          alert((data && data.message) || '删除失败');
+        var result = await api('/api/users/' + encodeURIComponent(userId), { method: 'DELETE' });
+        if (!result.ok) {
+          alert((result.data && result.data.message) || '删除失败');
           return;
         }
-        await loadUsers();
+        await loadAll();
       }
 
       function copyLink(userId) {
-        const link = SHORT_LINK_BASE + userId;
+        var link = SHORT_LINK_BASE + userId;
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(link).then(function () {
             alert('已复制：' + link);
@@ -633,34 +662,32 @@
         }
       }
 
-      // 事件绑定
       el.loginBtn.addEventListener('click', login);
       el.loginPassword.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') login();
       });
       el.logoutBtn.addEventListener('click', logout);
+      el.saveConfigBtn.addEventListener('click', saveConfig);
       el.randomIdBtn.addEventListener('click', generateRandomId);
       el.addUserBtn.addEventListener('click', addUser);
-
-      el.audioModalCancel.addEventListener('click', function () { hide(el.audioModal); });
-      el.audioModalSave.addEventListener('click', saveAudio);
+      el.fileModalCancel.addEventListener('click', function () { hide(el.fileModal); });
+      el.fileModalSave.addEventListener('click', saveFile);
       el.rechargeModalCancel.addEventListener('click', function () { hide(el.rechargeModal); });
       el.rechargeModalSave.addEventListener('click', saveRecharge);
 
       el.userTableBody.addEventListener('click', function (e) {
-        const btn = e.target.closest('button[data-action]');
+        var btn = e.target.closest('button[data-action]');
         if (!btn) return;
-        const action = btn.getAttribute('data-action');
-        const id = btn.getAttribute('data-id');
+        var action = btn.getAttribute('data-action');
+        var id = btn.getAttribute('data-id');
         if (action === 'copy') copyLink(id);
-        if (action === 'audio') openAudioModal(id);
+        if (action === 'file') openFileModal(id);
         if (action === 'recharge') openRechargeModal(id);
         if (action === 'delete') deleteUser(id);
       });
 
-      // 点击遮罩关闭弹窗
-      el.audioModal.addEventListener('click', function (e) {
-        if (e.target === el.audioModal) hide(el.audioModal);
+      el.fileModal.addEventListener('click', function (e) {
+        if (e.target === el.fileModal) hide(el.fileModal);
       });
       el.rechargeModal.addEventListener('click', function (e) {
         if (e.target === el.rechargeModal) hide(el.rechargeModal);
