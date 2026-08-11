@@ -61,7 +61,7 @@ type LeanShortlink = {
   updatedAt?: Date;
 };
 
-async function serializeMany(docs: LeanShortlink[], _req?: Request) {
+async function serializeMany(docs: LeanShortlink[]) {
   const fileIds = Array.from(
     new Set(
       docs.map((d) => (d.fileId ? String(d.fileId) : "")).filter(Boolean)
@@ -119,8 +119,8 @@ async function serializeMany(docs: LeanShortlink[], _req?: Request) {
   });
 }
 
-async function serializeOne(doc: LeanShortlink, req: Request) {
-  const [item] = await serializeMany([doc], req);
+async function serializeOne(doc: LeanShortlink) {
+  const [item] = await serializeMany([doc]);
   return item;
 }
 
@@ -162,7 +162,7 @@ export const GET = withApiHandler(async (req: Request) => {
 
   const items = await ShortlinkUser.find(filter).sort({ createdAt: -1 }).lean();
   return jsonOk({
-    items: await serializeMany(items as LeanShortlink[], req),
+    items: await serializeMany(items as LeanShortlink[]),
   });
 });
 
@@ -206,7 +206,7 @@ export const POST = withApiHandler(async (req: Request) => {
   });
 
   return jsonOk({
-    item: await serializeOne(created.toObject() as LeanShortlink, req),
+    item: await serializeOne(created.toObject() as LeanShortlink),
   });
 });
 
@@ -264,7 +264,7 @@ export const PATCH = withApiHandler(async (req: Request) => {
 
   await doc.save();
   return jsonOk({
-    item: await serializeOne(doc.toObject() as LeanShortlink, req),
+    item: await serializeOne(doc.toObject() as LeanShortlink),
   });
 });
 
