@@ -16,6 +16,11 @@ import {
   phoneSchema,
   usernameSchema,
 } from "@/lib/user-profile";
+import {
+  ensureShortlinkForMediaVaultUser,
+  buildPublicShortUrl,
+} from "@/lib/shortlink";
+import { ShortlinkUser } from "@/models/ShortlinkUser";
 
 function serializeUser(doc: {
   _id: { toString(): string };
@@ -126,5 +131,22 @@ export const PATCH = withApiHandler(async (req: Request) => {
     throw err;
   }
 
-  return jsonOk({ item: serializeUser(user) });
+  // Sync shortlink id to the new username/name (non-blocking on error)
+  await ensureShortlinkForMediaVaultUser({
+    mediaVaultUserId: String(user._id),
+    username: user.username,
+    name: user.name,
+  }).catch(() => null);
+
+  const shortlink = await ShortlinkUser.findOne({
+    linkedUserId: user._id,
+  }).lean();
+
+  return jsonOk({
+    item: {
+      ...serializeUser(user),
+      shortUrl: shortlink ? buildPublicShortUrl(shortlink.userId) : null,
+      shortlinkUserId: shortlink?.userId ?? null,
+    },
+  });
 });

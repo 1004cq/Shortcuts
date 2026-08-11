@@ -1,50 +1,45 @@
 export const dynamic = "force-dynamic";
 
+import { connectDB } from "@/lib/db";
 import { requireAuth, jsonOk, withApiHandler } from "@/lib/api";
 import {
-  ensureUserApiToken,
-  regenerateUserApiToken,
-} from "@/lib/token-auth";
-import { getAppUrl } from "@/lib/utils";
-import { canDownload } from "@/lib/permissions";
+  buildPublicShortUrl,
+  ensureShortlinkForMediaVaultUser,
+} from "@/lib/shortlink";
+import { User } from "@/models/User";
 
 /**
- * GET /api/me/token — return (or create) personal API token for Shortcuts.
+ * GET /api/me/token — return the user's personal shortlink (creates one if absent).
+ * The old token/download-template shape is preserved as a no-op alias for backward
+ * compatibility but the primary payload is now the short URL.
  */
 export const GET = withApiHandler(async () => {
-  const user = await requireAuth();
-  const token = await ensureUserApiToken(user.id);
-  const base = getAppUrl().replace(/\/$/, "");
+  const sessionUser = await requireAuth();
+  await connectDB();
+
+  const user = await User.findById(sessionUser.id).lean();
+  const shortlink = await ensureShortlinkForMediaVaultUser({
+    mediaVaultUserId: sessionUser.id,
+    username: user?.username,
+    name: user?.name,
+  });
+
+  const shortUrl = buildPublicShortUrl(shortlink.userId);
 
   return jsonOk({
-    token,
-    canDownload: canDownload(user),
-    usage: {
-      download: `${base}/api/files/{fileId}/download?token=${token}`,
-      stream: `${base}/api/files/{fileId}/stream?token=${token}`,
-      header: `Authorization: Bearer ${token}`,
-    },
-    shortcutsHint:
-      "在「获取 URL 内容」中填写 download 地址，把 {fileId} 换成文件详情页 URL 末尾的 ID。",
+    shortUrl,
+    shortlinkUserId: shortlink.userId,
+    remainingTimes: shortlink.remainingTimes,
+    usedTimes: shortlink.usedTimes,
+    hasAudio: Boolean(shortlink.fileId),
+    /** @deprecated kept for any older clients still reading these */
+    token: null,
+    canDownload: true,
+    usage: null,
   });
 });
 
 /**
- * POST /api/me/token — rotate token (invalidates the previous one).
+ * POST /api/me/token — no-op rotate kept for backward compat; returns same as GET.
  */
-export const POST = withApiHandler(async () => {
-  const user = await requireAuth();
-  const token = await regenerateUserApiToken(user.id);
-  const base = getAppUrl().replace(/\/$/, "");
-
-  return jsonOk({
-    token,
-    canDownload: canDownload(user),
-    usage: {
-      download: `${base}/api/files/{fileId}/download?token=${token}`,
-      stream: `${base}/api/files/{fileId}/stream?token=${token}`,
-      header: `Authorization: Bearer ${token}`,
-    },
-    message: "Token 已重新生成，旧 Token 立即失效",
-  });
-});
+export const POST = GET;
