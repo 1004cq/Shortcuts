@@ -7,6 +7,8 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { Subscription } from "@/models/Subscription";
 import { DownloadLog } from "@/models/DownloadLog";
+import { ShortlinkUser } from "@/models/ShortlinkUser";
+import { FileModel } from "@/models/File";
 import {
   ApiError,
   jsonOk,
@@ -20,6 +22,7 @@ import {
   phoneSchema,
   usernameSchema,
 } from "@/lib/user-profile";
+import { buildAplUrl } from "@/lib/shortlink";
 
 const passwordSchema = z
   .string()
@@ -58,8 +61,47 @@ export const GET = withApiHandler(async (req: Request) => {
     User.countDocuments(filter),
   ]);
 
+  const userIds = items.map((u) => u._id);
+  const shortlinks = userIds.length
+    ? await ShortlinkUser.find({ linkedUserId: { $in: userIds } }).lean()
+    : [];
+  const fileIds = Array.from(
+    new Set(shortlinks.map((s) => String(s.fileId)).filter(Boolean))
+  );
+  const files = fileIds.length
+    ? await FileModel.find({ _id: { $in: fileIds } })
+        .select("_id name originalName")
+        .lean()
+    : [];
+  const fileMap = new Map(files.map((f) => [String(f._id), f]));
+  const shortMap = new Map(
+    shortlinks.map((s) => [String(s.linkedUserId), s])
+  );
+
+  const enriched = items.map((u) => {
+    const sl = shortMap.get(String(u._id));
+    if (!sl) {
+      return { ...u, shortlink: null };
+    }
+    const file = fileMap.get(String(sl.fileId));
+    return {
+      ...u,
+      shortlink: {
+        userId: sl.userId,
+        fileId: String(sl.fileId),
+        fileName: file?.name || file?.originalName || null,
+        remainingTimes: Number(sl.remainingTimes) || 0,
+        usedTimes: Number(sl.usedTimes) || 0,
+        lastAccessTime: sl.lastAccessTime
+          ? new Date(sl.lastAccessTime).toISOString()
+          : null,
+        shortUrl: buildAplUrl(sl.userId, req),
+      },
+    };
+  });
+
   return jsonOk({
-    items,
+    items: enriched,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
   });
 });
@@ -224,6 +266,7 @@ export const DELETE = withApiHandler(async (req: Request) => {
   await Promise.all([
     Subscription.deleteMany({ userId }),
     DownloadLog.deleteMany({ userId }),
+    ShortlinkUser.deleteMany({ linkedUserId: userId }),
   ]);
   await User.deleteOne({ _id: userId });
 

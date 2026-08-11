@@ -180,6 +180,13 @@ export const POST = withApiHandler(async (req: Request) => {
   await assertFileExists(body.fileId);
   const linked = await assertLinkedUser(body.linkedUserId ?? null);
 
+  if (linked) {
+    const already = await ShortlinkUser.exists({ linkedUserId: linked._id });
+    if (already) {
+      throw new ApiError("该 MediaVault 用户已绑定短链接，请直接编辑", 409);
+    }
+  }
+
   const exists = await ShortlinkUser.exists({ userId: body.userId });
   if (exists) {
     throw new ApiError("用户ID已存在", 400);
@@ -204,12 +211,15 @@ const patchSchema = z
     userId: userIdSchema,
     fileId: z.string().min(1).optional(),
     addTimes: z.coerce.number().int().positive().optional(),
+    /** Absolute remaining times (set) */
+    remainingTimes: z.coerce.number().int().min(0).optional(),
     linkedUserId: z.string().nullable().optional(),
   })
   .refine(
     (v) =>
       v.fileId !== undefined ||
       v.addTimes !== undefined ||
+      v.remainingTimes !== undefined ||
       v.linkedUserId !== undefined,
     { message: "请提供要更新的字段" }
   );
@@ -229,11 +239,22 @@ export const PATCH = withApiHandler(async (req: Request) => {
     await assertFileExists(body.fileId);
     doc.fileId = new mongoose.Types.ObjectId(body.fileId);
   }
-  if (body.addTimes !== undefined) {
+  if (body.remainingTimes !== undefined) {
+    doc.remainingTimes = body.remainingTimes;
+  } else if (body.addTimes !== undefined) {
     doc.remainingTimes = (doc.remainingTimes || 0) + body.addTimes;
   }
   if (body.linkedUserId !== undefined) {
     const linked = await assertLinkedUser(body.linkedUserId);
+    if (linked) {
+      const clash = await ShortlinkUser.findOne({
+        linkedUserId: linked._id,
+        _id: { $ne: doc._id },
+      }).lean();
+      if (clash) {
+        throw new ApiError("该 MediaVault 用户已绑定其他短链接", 409);
+      }
+    }
     doc.linkedUserId = linked?._id ?? null;
   }
 

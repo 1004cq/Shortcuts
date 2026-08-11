@@ -24,7 +24,7 @@ const ShortlinkUserSchema = new Schema(
       required: true,
       index: true,
     },
-    /** Optional link to a MediaVault account (display / management only) */
+    /** One-to-one link to a MediaVault account (required for users-module binding) */
     linkedUserId: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -54,7 +54,11 @@ const ShortlinkUserSchema = new Schema(
 );
 
 ShortlinkUserSchema.index({ createdAt: -1 });
-
+/** At most one shortlink per MediaVault user */
+ShortlinkUserSchema.index(
+  { linkedUserId: 1 },
+  { unique: true, sparse: true, partialFilterExpression: { linkedUserId: { $type: "objectId" } } }
+);
 export type ShortlinkUserDocument = InferSchemaType<typeof ShortlinkUserSchema> & {
   _id: mongoose.Types.ObjectId;
 };
