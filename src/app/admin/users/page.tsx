@@ -368,7 +368,7 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error(data.error || "切换失败");
       setAudioTarget(null);
       setAudioPick(null);
-      flash(`已切换音频：${audioPick.name}`);
+      flash(`已切换媒体：${audioPick.name}`);
       await load(q);
     } catch (err) {
       setError(err instanceof Error ? err.message : "切换失败");
@@ -412,7 +412,7 @@ export default function AdminUsersPage() {
       <p className="mb-3 text-xs text-slate-400">
         用户与短链接合一展示；昵称/用户名为 2-8 位字母数字时，短链会自动同步为该值
         <code className="mx-1 text-slate-300">https://cq.imim.chat/api/&#123;userId&#125;</code>
-        ，可在此复制、选音频、改剩余次数。管理员请到「系统设置」。
+        ，可在此复制、选媒体、改剩余次数。管理员请到「系统设置」。
       </p>
       <div className="mb-4 flex flex-wrap gap-2">
         <Input
@@ -439,7 +439,7 @@ export default function AdminUsersPage() {
             <TableHeader>
               <TableRow className="border-slate-800 hover:bg-transparent">
                 <TableHead className="text-slate-400">用户 / 短链接</TableHead>
-                <TableHead className="hidden text-slate-400 sm:table-cell">音频</TableHead>
+                <TableHead className="hidden text-slate-400 sm:table-cell">媒体</TableHead>
                 <TableHead className="hidden text-slate-400 sm:table-cell">次数</TableHead>
                 <TableHead className="text-slate-400">角色</TableHead>
                 <TableHead className="text-right text-slate-400">操作</TableHead>
@@ -478,7 +478,7 @@ export default function AdminUsersPage() {
                       {/* Mobile: show audio + counts under user */}
                       <div className="space-y-0.5 text-[11px] text-slate-500 sm:hidden">
                         <p>
-                          音频：
+                          媒体：
                           {u.shortlink?.fileName ||
                             (u.shortlink?.fileId ? "文件缺失" : "未绑定")}
                         </p>
@@ -494,7 +494,7 @@ export default function AdminUsersPage() {
                       <div className="max-w-[140px]">
                         <p className="truncate text-sm text-slate-200">
                           {u.shortlink.fileName ||
-                            (u.shortlink.fileId ? "（文件缺失）" : "未绑定音频")}
+                            (u.shortlink.fileId ? "（文件缺失）" : "未绑定媒体")}
                         </p>
                       </div>
                     ) : (
@@ -557,7 +557,7 @@ export default function AdminUsersPage() {
                             }}
                           >
                             <Music2 className="mr-1 h-3.5 w-3.5" />
-                            选音频
+                            选媒体
                           </Button>
                           <Button
                             size="sm"
@@ -799,7 +799,7 @@ export default function AdminUsersPage() {
                         : "从未"}
                     </p>
                     <p className="mt-1 text-slate-500">
-                      当前音频：
+                      当前媒体：
                       {editing.shortlink.fileName ||
                         (editing.shortlink.fileId ? "（文件缺失）" : "未绑定")}
                     </p>
@@ -833,7 +833,7 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>选择音频（从已上传列表）</Label>
+                  <Label>选择音频 / 视频（从已上传列表）</Label>
                   <AudioFilePicker value={slAudio?._id || null} onChange={setSlAudio} />
                 </div>
 
@@ -907,7 +907,7 @@ export default function AdminUsersPage() {
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>选择音频</DialogTitle>
+            <DialogTitle>选择音频 / 视频</DialogTitle>
             <DialogDescription>
               {audioTarget?.name} · 短链接{" "}
               {audioTarget?.shortlink?.userId}

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   Check,
   Copy,
+  Film,
   Link2,
   Loader2,
   Music2,
@@ -32,30 +33,42 @@ type ShortlinkInfo = {
   shortlinkUserId: string;
   fileId: string | null;
   fileName: string | null;
+  category?: string | null;
+  mimeType?: string | null;
+  mediaKind?: "audio" | "video" | null;
   remainingTimes: number;
   usedTimes: number;
+  hasMedia?: boolean;
   hasAudio: boolean;
 };
 
-type AudioItem = {
+type MediaItem = {
   _id: string;
   name: string;
   originalName?: string;
   size?: number;
   mimeType?: string;
+  category?: string;
 };
 
-/** Adaptive grid columns from total audio count (search-filtered list uses same density). */
+function kindOf(item: {
+  category?: string | null;
+  mimeType?: string | null;
+  mediaKind?: "audio" | "video" | null;
+}): "audio" | "video" {
+  if (item.mediaKind === "video" || item.mediaKind === "audio") {
+    return item.mediaKind;
+  }
+  const cat = String(item.category || "");
+  const mime = String(item.mimeType || "");
+  if (cat === "video" || mime.startsWith("video/")) return "video";
+  return "audio";
+}
+
+/** Adaptive grid columns from total media count. */
 function gridClassForCount(count: number): string {
-  if (count <= 4) {
-    // Large cards / 2 columns
-    return "grid-cols-2 gap-3";
-  }
-  if (count <= 9) {
-    // Prefer 3 cols; 2 on very narrow phones for finger size
-    return "grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3";
-  }
-  // 10+ → up to 4 cols; keep 2–3 on small screens so taps stay comfortable
+  if (count <= 4) return "grid-cols-2 gap-3";
+  if (count <= 9) return "grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3";
   return "grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 md:grid-cols-4 md:gap-3";
 }
 
@@ -87,7 +100,7 @@ export default function HomePage() {
   const reduceMotion = useReducedMotion();
   const motionDur = reduceMotion ? 0 : GRID_DURATION;
   const [shortlink, setShortlink] = React.useState<ShortlinkInfo | null>(null);
-  const [audios, setAudios] = React.useState<AudioItem[]>([]);
+  const [medias, setMedias] = React.useState<MediaItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -95,7 +108,11 @@ export default function HomePage() {
   const [copied, setCopied] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const previewVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const [previewingId, setPreviewingId] = React.useState<string | null>(null);
+  const [previewKind, setPreviewKind] = React.useState<"audio" | "video" | null>(
+    null
+  );
   const [previewError, setPreviewError] = React.useState("");
   const searchRef = React.useRef<HTMLInputElement>(null);
 
@@ -119,14 +136,14 @@ export default function HomePage() {
     try {
       const [slRes, filesRes] = await Promise.all([
         fetch("/api/me/shortlink"),
-        fetch("/api/files?category=audio&limit=100&sort=newest"),
+        fetch("/api/files?category=media&limit=100&sort=newest"),
       ]);
       const slData = await slRes.json();
       const filesData = await filesRes.json();
       if (!slRes.ok) throw new Error(slData.error || "加载短链接失败");
-      if (!filesRes.ok) throw new Error(filesData.error || "加载音频失败");
+      if (!filesRes.ok) throw new Error(filesData.error || "加载媒体失败");
       setShortlink(slData.item as ShortlinkInfo);
-      setAudios(
+      setMedias(
         (filesData.items || []).map(
           (f: {
             _id: string;
@@ -134,12 +151,14 @@ export default function HomePage() {
             originalName?: string;
             size?: number;
             mimeType?: string;
+            category?: string;
           }) => ({
             _id: f._id,
             name: f.name,
             originalName: f.originalName,
             size: f.size,
             mimeType: f.mimeType,
+            category: f.category,
           })
         )
       );
@@ -154,20 +173,26 @@ export default function HomePage() {
     if (status === "authenticated") void load();
   }, [status, load]);
 
-  const totalCount = audios.length;
+  const totalCount = medias.length;
   const showDenseSearch = totalCount >= 17;
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return audios;
-    return audios.filter((a) => {
+    if (!q) return medias;
+    return medias.filter((a) => {
       const name = (a.name || "").toLowerCase();
       const orig = (a.originalName || "").toLowerCase();
-      return name.includes(q) || orig.includes(q);
+      const kind = kindOf(a);
+      const kindLabel = kind === "video" ? "视频" : "音频";
+      return (
+        name.includes(q) ||
+        orig.includes(q) ||
+        kind.includes(q) ||
+        kindLabel.includes(q)
+      );
     });
-  }, [audios, query]);
+  }, [medias, query]);
 
-  // Layout density follows total library size, not filtered length
   const gridClass = gridClassForCount(totalCount);
 
   const copyLink = async () => {
@@ -183,41 +208,86 @@ export default function HomePage() {
   };
 
   const stopPreview = () => {
-    const el = previewAudioRef.current;
-    if (el) {
-      el.pause();
-      el.removeAttribute("src");
-      el.load();
+    const audio = previewAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    const video = previewVideoRef.current;
+    if (video) {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
     }
     setPreviewingId(null);
+    setPreviewKind(null);
   };
 
-  const playPreview = async (fileId: string) => {
+  const playPreview = async (item: MediaItem) => {
     setPreviewError("");
+    const kind = kindOf(item);
     try {
-      stopPreview();
-      const audio = previewAudioRef.current || new Audio();
-      previewAudioRef.current = audio;
-      audio.src = `/api/files/${fileId}/stream`;
-      audio.preload = "auto";
-      setPreviewingId(fileId);
-      await audio.play();
+      // Stop previous playback without clearing the upcoming preview state
+      const audio = previewAudioRef.current;
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
+      const video = previewVideoRef.current;
+      if (video) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      }
+
+      setPreviewingId(item._id);
+      setPreviewKind(kind);
+      const src = `/api/files/${item._id}/stream`;
+
+      if (kind === "video") {
+        // Actual play happens in effect after <video> mounts / updates
+        return;
+      }
+
+      const player = previewAudioRef.current || new Audio();
+      previewAudioRef.current = player;
+      player.src = src;
+      player.preload = "auto";
+      await player.play();
     } catch {
       setPreviewingId(null);
-      setPreviewError("试听失败，请检查网络或稍后重试");
+      setPreviewKind(null);
+      setPreviewError(
+        kind === "video"
+          ? "视频预览失败，请检查网络或稍后重试"
+          : "试听失败，请检查网络或稍后重试"
+      );
     }
   };
+
+  React.useEffect(() => {
+    if (previewKind !== "video" || !previewingId) return;
+    const el = previewVideoRef.current;
+    if (!el) return;
+    el.src = `/api/files/${previewingId}/stream`;
+    void el.play().catch(() => {
+      setPreviewError("视频预览失败，请检查网络或稍后重试");
+      setPreviewingId(null);
+      setPreviewKind(null);
+    });
+  }, [previewKind, previewingId]);
 
   React.useEffect(() => {
     return () => stopPreview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectAudio = async (audio: AudioItem) => {
+  const selectMedia = async (item: MediaItem) => {
     if (!shortlink || saving) return;
-    // Already selected → just preview again
-    if (audio._id === shortlink.fileId) {
-      void playPreview(audio._id);
+    if (item._id === shortlink.fileId) {
+      void playPreview(item);
       return;
     }
     setSaving(true);
@@ -226,13 +296,13 @@ export default function HomePage() {
       const res = await fetch("/api/me/shortlink", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileId: audio._id }),
+        body: JSON.stringify({ fileId: item._id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "切换失败");
       setShortlink(data.item as ShortlinkInfo);
-      flash(`已切换：${audio.name}`);
-      void playPreview(audio._id);
+      flash(`已切换：${item.name}`);
+      void playPreview(item);
     } catch (err) {
       setError(err instanceof Error ? err.message : "切换失败");
     } finally {
@@ -240,10 +310,12 @@ export default function HomePage() {
     }
   };
 
+  const boundKind = shortlink ? kindOf(shortlink) : "audio";
+  const hasBound = Boolean(shortlink?.fileId || shortlink?.hasMedia || shortlink?.hasAudio);
+
   return (
     <AppShell title="我的短链接" showSearch={false} showUpload={false}>
       <div className="mx-auto w-full min-w-0 max-w-md space-y-4 overflow-x-hidden animate-slide-up sm:max-w-xl sm:space-y-5">
-        {/* Shortlink */}
         <section className="min-w-0 overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-b from-sky-500/15 via-sky-950/40 to-transparent p-4 sm:rounded-3xl sm:p-5">
           <div className="mb-3 flex items-center gap-2 text-sky-200">
             <Link2 className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
@@ -283,8 +355,8 @@ export default function HomePage() {
               <ol className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400 sm:mt-4 sm:text-xs">
                 <li>1. 快捷指令添加「获取 URL 内容」</li>
                 <li>2. 粘贴上方短链接</li>
-                <li>3. 再添加「播放声音」</li>
-                <li>4. 下方切换音频后，快捷指令不用改</li>
+                <li>3. 再添加「快速查看」或「打开」</li>
+                <li>4. 音频/视频都可用同一短链接，下方切换后不用改快捷指令</li>
               </ol>
             </>
           ) : (
@@ -292,21 +364,20 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* Audio grid switcher */}
         <section className="min-w-0 space-y-2.5">
           <div className="flex min-w-0 items-end justify-between gap-2">
             <div className="min-w-0">
               <h2 className="font-display text-sm font-semibold text-slate-100 sm:text-base">
-                切换音频
+                切换媒体
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">
-                点选即可切换并试听，短链接不变
-                {totalCount > 0 ? ` · 共 ${totalCount} 首` : ""}
+                点选音频试听 / 视频预览，短链接不变
+                {totalCount > 0 ? ` · 共 ${totalCount} 个` : ""}
               </p>
             </div>
             {shortlink?.fileId && (
               <Badge variant="secondary" className="shrink-0 text-[10px]">
-                已选
+                {boundKind === "video" ? "视频" : "音频"}
               </Badge>
             )}
           </div>
@@ -314,15 +385,14 @@ export default function HomePage() {
           {loading ? (
             <div className="flex h-36 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-400">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              加载音频…
+              加载媒体…
             </div>
-          ) : audios.length === 0 ? (
+          ) : medias.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 px-4 py-8 text-center text-sm text-slate-500">
-              暂无可用音频，请联系管理员上传
+              暂无可用音频/视频，请联系管理员上传
             </div>
           ) : (
             <>
-              {/* Search — always visible; emphasized when library is large */}
               <div
                 className={cn(
                   "relative",
@@ -336,8 +406,8 @@ export default function HomePage() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={
                     showDenseSearch
-                      ? "搜索音频名称（曲库较多）…"
-                      : "搜索音频名称…"
+                      ? "搜索名称或类型（库较多）…"
+                      : "搜索名称 / 音频 / 视频…"
                   }
                   className="h-11 border-white/10 bg-black/25 pl-9 text-sm"
                   autoFocus={showDenseSearch}
@@ -351,7 +421,7 @@ export default function HomePage() {
                     "max-h-[min(52vh,28rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-black/10 p-2 sm:max-h-[32rem]"
                 )}
               >
-                <LayoutGroup id="audio-switch-grid">
+                <LayoutGroup id="media-switch-grid">
                   <AnimatePresence mode="popLayout" initial={false}>
                     {filtered.length === 0 ? (
                       <motion.p
@@ -362,7 +432,7 @@ export default function HomePage() {
                         transition={{ duration: motionDur }}
                         className="py-8 text-center text-sm text-slate-500"
                       >
-                        没有匹配「{query.trim()}」的音频
+                        没有匹配「{query.trim()}」的媒体
                       </motion.p>
                     ) : (
                       <motion.div
@@ -372,23 +442,24 @@ export default function HomePage() {
                         className={cn("grid", gridClass)}
                       >
                         <AnimatePresence mode="popLayout" initial={false}>
-                          {filtered.map((audio) => {
-                            const active = audio._id === shortlink?.fileId;
-                            const previewing = previewingId === audio._id;
+                          {filtered.map((item) => {
+                            const active = item._id === shortlink?.fileId;
+                            const previewing = previewingId === item._id;
+                            const kind = kindOf(item);
+                            const Icon = kind === "video" ? Film : Music2;
                             return (
                               <motion.button
-                                key={audio._id}
+                                key={item._id}
                                 type="button"
-                                // Dense libraries: position-only FLIP (cheaper on mobile)
                                 layout={totalCount >= 17 ? "position" : true}
                                 disabled={saving}
-                                onClick={() => void selectAudio(audio)}
+                                onClick={() => void selectMedia(item)}
                                 className={cellClassForCount(
                                   totalCount,
                                   active,
                                   previewing
                                 )}
-                                title={audio.name}
+                                title={item.name}
                                 initial={
                                   reduceMotion
                                     ? false
@@ -405,6 +476,16 @@ export default function HomePage() {
                                 }
                                 transition={itemTransition}
                               >
+                                <span
+                                  className={cn(
+                                    "mb-1 rounded px-1 py-px text-[9px] font-semibold sm:text-[10px]",
+                                    kind === "video"
+                                      ? "bg-violet-500/25 text-violet-200"
+                                      : "bg-sky-500/25 text-sky-200"
+                                  )}
+                                >
+                                  {kind === "video" ? "视频" : "音频"}
+                                </span>
                                 <div
                                   className={cn(
                                     "mb-1.5 flex items-center justify-center rounded-xl transition-colors duration-300",
@@ -412,11 +493,13 @@ export default function HomePage() {
                                       ? "h-12 w-12 sm:h-14 sm:w-14"
                                       : "h-9 w-9 sm:h-10 sm:w-10",
                                     active
-                                      ? "bg-sky-400/25 text-sky-200"
+                                      ? kind === "video"
+                                        ? "bg-violet-400/25 text-violet-200"
+                                        : "bg-sky-400/25 text-sky-200"
                                       : "bg-white/10 text-slate-300"
                                   )}
                                 >
-                                  <Music2
+                                  <Icon
                                     className={cn(
                                       "transition-transform duration-300",
                                       totalCount <= 4
@@ -434,7 +517,7 @@ export default function HomePage() {
                                       : "line-clamp-2 text-[11px] sm:text-xs"
                                   )}
                                 >
-                                  {audio.name}
+                                  {item.name}
                                 </p>
                                 <AnimatePresence initial={false}>
                                   {active && (
@@ -451,7 +534,11 @@ export default function HomePage() {
                                       className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-sky-300 sm:text-xs"
                                     >
                                       <Check className="h-3 w-3" />
-                                      {previewing ? "试听中" : "当前"}
+                                      {previewing
+                                        ? kind === "video"
+                                          ? "预览中"
+                                          : "试听中"
+                                        : "当前"}
                                     </motion.span>
                                   )}
                                 </AnimatePresence>
@@ -469,15 +556,40 @@ export default function HomePage() {
                 <p className="text-[11px] text-slate-500">当前绑定</p>
                 <p className="mt-0.5 truncate font-medium text-slate-100">
                   {shortlink?.fileName ||
-                    (shortlink?.hasAudio ? "（文件缺失）" : "尚未选择音频")}
+                    (hasBound ? "（文件缺失）" : "尚未选择音频/视频")}
                 </p>
+                {shortlink?.fileId && (
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    类型：{boundKind === "video" ? "视频" : "音频"}
+                  </p>
+                )}
                 {saving && (
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-sky-300">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     切换中…
                   </p>
                 )}
-                {previewingId && !saving && (
+                {previewKind === "video" && previewingId && !saving && (
+                  <div className="mt-2 space-y-2">
+                    <video
+                      ref={previewVideoRef}
+                      controls
+                      playsInline
+                      className="max-h-48 w-full rounded-lg bg-black"
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-violet-300">正在预览视频…</p>
+                      <button
+                        type="button"
+                        className="text-xs text-slate-400 underline"
+                        onClick={stopPreview}
+                      >
+                        停止
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {previewKind === "audio" && previewingId && !saving && (
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <p className="text-xs text-sky-300">♪ 正在试听预览…</p>
                     <button

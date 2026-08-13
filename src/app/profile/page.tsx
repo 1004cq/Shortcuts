@@ -296,7 +296,7 @@ export default function ProfilePage() {
                       {" · "}剩余 {shortlink.remainingTimes} 次
                       {" · "}已用 {shortlink.usedTimes} 次
                       {!shortlink.hasAudio && (
-                        <span className="ml-2 text-amber-400">· 音频未绑定（联系管理员）</span>
+                        <span className="ml-2 text-amber-400">· 媒体未绑定（可在首页选择音频/视频）</span>
                       )}
                     </p>
                   </div>
@@ -328,11 +328,11 @@ export default function ProfilePage() {
                     </li>
                     <li className="flex gap-2">
                       <span className="shrink-0 font-mono text-sky-400">3.</span>
-                      继续添加「<strong className="text-white">播放声音</strong>」动作
+                      继续添加「<strong className="text-white">快速查看</strong>」或「<strong className="text-white">打开</strong>」动作
                     </li>
                     <li className="flex gap-2">
                       <span className="shrink-0 font-mono text-sky-400">4.</span>
-                      后台更换音频后<strong className="text-white">无需修改快捷指令</strong>，短链接保持不变
+                      音频和视频都可用同一短链接；首页切换媒体后<strong className="text-white">无需修改快捷指令</strong>
                     </li>
                   </ol>
                   <p className="mt-3 text-xs text-slate-500">

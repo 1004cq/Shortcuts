@@ -24,7 +24,7 @@ type Ctx = { params: { userId: string } };
 /**
  * GET /api/:userId
  * Public short link with play-count billing (Shortcuts).
- * Flow: find user → require audio → check remaining → deduct 1 → 302 to download.
+ * Flow: find user → require bound media → check remaining → deduct 1 → 302 to download.
  */
 export async function GET(req: Request, ctx: Ctx) {
   try {
@@ -52,7 +52,7 @@ export async function GET(req: Request, ctx: Ctx) {
     }
 
     if (!doc.fileId) {
-      return new NextResponse("该用户未绑定音频", {
+      return new NextResponse("该用户未绑定音频或视频", {
         status: 404,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });

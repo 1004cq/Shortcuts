@@ -76,6 +76,8 @@ export function UploadDialog({ open, onOpenChange, onUploaded }: UploadDialogPro
       form.append("description", description);
       if (fromRecording || file.type.startsWith("audio/")) {
         form.append("category", "audio");
+      } else if (file.type.startsWith("video/")) {
+        form.append("category", "video");
       }
       const res = await fetch("/api/files", { method: "POST", body: form });
       const data = await res.json();

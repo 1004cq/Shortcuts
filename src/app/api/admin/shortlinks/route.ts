@@ -16,6 +16,7 @@ import { TimesAdjustLog } from "@/models/TimesAdjustLog";
 import {
   buildPublicShortUrl,
   generateShortlinkUserId,
+  isShortlinkMediaFile,
   SHORTLINK_USER_ID_REGEXP,
 } from "@/lib/shortlink";
 
@@ -25,13 +26,16 @@ const userIdSchema = z
 
 async function assertFileExists(fileId: string) {
   if (!mongoose.Types.ObjectId.isValid(fileId)) {
-    throw new ApiError("无效的音频文件 ID", 400);
+    throw new ApiError("无效的媒体文件 ID", 400);
   }
   const file = await FileModel.findById(fileId)
     .select("_id name originalName category mimeType")
     .lean();
   if (!file) {
-    throw new ApiError("音频文件不存在", 404);
+    throw new ApiError("媒体文件不存在", 404);
+  }
+  if (!isShortlinkMediaFile(file)) {
+    throw new ApiError("只能绑定音频或视频文件", 400);
   }
   return file;
 }

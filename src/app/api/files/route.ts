@@ -30,7 +30,7 @@ function withShortcutUrl<T extends { shareToken?: string | null; toObject?: () =
 const listQuerySchema = z.object({
   q: z.string().optional(),
   category: z
-    .enum(["video", "audio", "document", "image", "other", "all"])
+    .enum(["video", "audio", "document", "image", "other", "all", "media"])
     .optional()
     .default("all"),
   sort: z.enum(["newest", "oldest", "name", "size", "downloads"]).optional().default("newest"),
@@ -59,7 +59,10 @@ export const GET = withApiHandler(async (req: Request) => {
   const { q, category, sort, page, limit } = parsed.data;
   const filter: Record<string, unknown> = { isPublic: true };
 
-  if (category && category !== "all") {
+  if (category === "media") {
+    // Shortlink-bindable: audio + video
+    filter.category = { $in: ["audio", "video"] };
+  } else if (category && category !== "all") {
     filter.category = category;
   }
 

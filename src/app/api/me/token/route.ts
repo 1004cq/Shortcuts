@@ -5,6 +5,8 @@ import { requireAuth, jsonOk, withApiHandler } from "@/lib/api";
 import {
   buildPublicShortUrl,
   ensureShortlinkForMediaVaultUser,
+  isShortlinkMediaFile,
+  shortlinkMediaKind,
 } from "@/lib/shortlink";
 import { User } from "@/models/User";
 import { FileModel } from "@/models/File";
@@ -24,22 +26,31 @@ export const GET = withApiHandler(async () => {
   });
 
   let fileName: string | null = null;
-  const fileId = shortlink.fileId ? String(shortlink.fileId) : null;
+  let fileId: string | null = shortlink.fileId ? String(shortlink.fileId) : null;
+  let mediaKind: "audio" | "video" | null = null;
   if (fileId) {
     const file = await FileModel.findById(fileId)
-      .select("name originalName")
+      .select("name originalName category mimeType")
       .lean();
-    fileName = file?.name || file?.originalName || null;
+    if (file && isShortlinkMediaFile(file)) {
+      fileName = file.name || file.originalName || null;
+      mediaKind = shortlinkMediaKind(file);
+    } else {
+      fileId = null;
+    }
   }
 
+  const hasMedia = Boolean(fileId);
   return jsonOk({
     shortUrl: buildPublicShortUrl(shortlink.userId),
     shortlinkUserId: shortlink.userId,
     fileId,
     fileName,
+    mediaKind,
     remainingTimes: shortlink.remainingTimes,
     usedTimes: shortlink.usedTimes,
-    hasAudio: Boolean(fileId),
+    hasMedia,
+    hasAudio: hasMedia,
     token: null,
     canDownload: true,
     usage: null,

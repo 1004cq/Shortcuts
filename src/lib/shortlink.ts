@@ -218,6 +218,32 @@ export async function resolveShortlinkApiToken(): Promise<string> {
   return ensureUserApiToken(String(admin._id));
 }
 
+/** Audio or video that can be bound to a user shortlink. */
+export function isShortlinkMediaFile(file: {
+  category?: string | null;
+  mimeType?: string | null;
+}): boolean {
+  const cat = String(file.category || "");
+  const mime = String(file.mimeType || "");
+  return (
+    cat === "audio" ||
+    cat === "video" ||
+    mime.startsWith("audio/") ||
+    mime.startsWith("video/")
+  );
+}
+
+export function shortlinkMediaKind(file: {
+  category?: string | null;
+  mimeType?: string | null;
+}): "audio" | "video" | null {
+  const cat = String(file.category || "");
+  const mime = String(file.mimeType || "");
+  if (cat === "video" || mime.startsWith("video/")) return "video";
+  if (cat === "audio" || mime.startsWith("audio/")) return "audio";
+  return null;
+}
+
 /**
  * Build redirect target for a bound MediaVault file:
  *   {base}/api/files/{fileId}/download?token={apiToken}
@@ -227,13 +253,18 @@ export async function buildFileDownloadRedirectUrl(
   req?: Request
 ): Promise<string> {
   if (!mongoose.Types.ObjectId.isValid(fileId)) {
-    throw new ApiError("无效的音频文件 ID", 400);
+    throw new ApiError("无效的媒体文件 ID", 400);
   }
 
   await connectDB();
-  const file = await FileModel.findById(fileId).select("_id").lean();
+  const file = await FileModel.findById(fileId)
+    .select("_id category mimeType")
+    .lean();
   if (!file) {
-    throw new ApiError("绑定的音频文件不存在", 404);
+    throw new ApiError("绑定的媒体文件不存在", 404);
+  }
+  if (!isShortlinkMediaFile(file)) {
+    throw new ApiError("绑定的文件不是音频或视频", 400);
   }
 
   const token = await resolveShortlinkApiToken();
