@@ -2,6 +2,12 @@
 
 import * as React from "react";
 import { useSession } from "next-auth/react";
+import {
+  AnimatePresence,
+  LayoutGroup,
+  motion,
+  useReducedMotion,
+} from "motion/react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +22,10 @@ import {
   Music2,
   Search,
 } from "lucide-react";
+
+/** Shared easing — snappy but soft (~250–300ms). */
+const GRID_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+const GRID_DURATION = 0.28;
 
 type ShortlinkInfo = {
   shortUrl: string;
@@ -49,7 +59,11 @@ function gridClassForCount(count: number): string {
   return "grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 md:grid-cols-4 md:gap-3";
 }
 
-function cellClassForCount(count: number, active: boolean): string {
+function cellClassForCount(
+  count: number,
+  active: boolean,
+  previewing: boolean
+): string {
   const size =
     count <= 4
       ? "min-h-[7.5rem] p-3.5 sm:min-h-[8.5rem] sm:p-4"
@@ -58,16 +72,20 @@ function cellClassForCount(count: number, active: boolean): string {
         : "min-h-[5.25rem] p-2 sm:min-h-[5.5rem] sm:p-2.5";
 
   return cn(
-    "flex flex-col items-center justify-center rounded-2xl border text-center transition active:scale-[0.98]",
+    "flex flex-col items-center justify-center rounded-2xl border text-center",
+    "transition-[border-color,background-color,box-shadow,color] duration-300 ease-out",
     size,
     active
       ? "border-sky-400 bg-sky-500/20 shadow-[0_0_0_1px_rgba(56,189,248,0.35)]"
-      : "border-white/10 bg-white/5 hover:border-white/25"
+      : "border-white/10 bg-white/5 hover:border-white/25",
+    previewing && "shadow-[0_0_0_2px_rgba(56,189,248,0.45)]"
   );
 }
 
 export default function HomePage() {
   const { status } = useSession();
+  const reduceMotion = useReducedMotion();
+  const motionDur = reduceMotion ? 0 : GRID_DURATION;
   const [shortlink, setShortlink] = React.useState<ShortlinkInfo | null>(null);
   const [audios, setAudios] = React.useState<AudioItem[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -80,6 +98,15 @@ export default function HomePage() {
   const [previewingId, setPreviewingId] = React.useState<string | null>(null);
   const [previewError, setPreviewError] = React.useState("");
   const searchRef = React.useRef<HTMLInputElement>(null);
+
+  const itemTransition = React.useMemo(
+    () => ({
+      layout: { duration: motionDur, ease: GRID_EASE },
+      opacity: { duration: motionDur * 0.85, ease: GRID_EASE },
+      scale: { duration: motionDur * 0.85, ease: GRID_EASE },
+    }),
+    [motionDur]
+  );
 
   const flash = (text: string) => {
     setMsg(text);
@@ -324,62 +351,118 @@ export default function HomePage() {
                     "max-h-[min(52vh,28rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-black/10 p-2 sm:max-h-[32rem]"
                 )}
               >
-                {filtered.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-slate-500">
-                    没有匹配「{query.trim()}」的音频
-                  </p>
-                ) : (
-                  <div className={cn("grid", gridClass)}>
-                    {filtered.map((audio) => {
-                      const active = audio._id === shortlink?.fileId;
-                      const previewing = previewingId === audio._id;
-                      return (
-                        <button
-                          key={audio._id}
-                          type="button"
-                          disabled={saving}
-                          onClick={() => void selectAudio(audio)}
-                          className={cellClassForCount(totalCount, active)}
-                          title={audio.name}
-                        >
-                          <div
-                            className={cn(
-                              "mb-1.5 flex items-center justify-center rounded-xl",
-                              totalCount <= 4
-                                ? "h-12 w-12 sm:h-14 sm:w-14"
-                                : "h-9 w-9 sm:h-10 sm:w-10",
-                              active
-                                ? "bg-sky-400/25 text-sky-200"
-                                : "bg-white/10 text-slate-300"
-                            )}
-                          >
-                            <Music2
-                              className={cn(
-                                totalCount <= 4 ? "h-6 w-6" : "h-4 w-4 sm:h-5 sm:w-5"
-                              )}
-                            />
-                          </div>
-                          <p
-                            className={cn(
-                              "w-full break-words font-medium leading-snug text-slate-100",
-                              totalCount <= 4
-                                ? "line-clamp-2 text-sm sm:text-base"
-                                : "line-clamp-2 text-[11px] sm:text-xs"
-                            )}
-                          >
-                            {audio.name}
-                          </p>
-                          {active && (
-                            <span className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-sky-300 sm:text-xs">
-                              <Check className="h-3 w-3" />
-                              {previewing ? "试听中" : "当前"}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <LayoutGroup id="audio-switch-grid">
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {filtered.length === 0 ? (
+                      <motion.p
+                        key="empty"
+                        initial={reduceMotion ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: motionDur }}
+                        className="py-8 text-center text-sm text-slate-500"
+                      >
+                        没有匹配「{query.trim()}」的音频
+                      </motion.p>
+                    ) : (
+                      <motion.div
+                        key="grid"
+                        layout
+                        transition={{ layout: { duration: motionDur, ease: GRID_EASE } }}
+                        className={cn("grid", gridClass)}
+                      >
+                        <AnimatePresence mode="popLayout" initial={false}>
+                          {filtered.map((audio) => {
+                            const active = audio._id === shortlink?.fileId;
+                            const previewing = previewingId === audio._id;
+                            return (
+                              <motion.button
+                                key={audio._id}
+                                type="button"
+                                // Dense libraries: position-only FLIP (cheaper on mobile)
+                                layout={totalCount >= 17 ? "position" : true}
+                                disabled={saving}
+                                onClick={() => void selectAudio(audio)}
+                                className={cellClassForCount(
+                                  totalCount,
+                                  active,
+                                  previewing
+                                )}
+                                title={audio.name}
+                                initial={
+                                  reduceMotion
+                                    ? false
+                                    : { opacity: 0, scale: 0.92 }
+                                }
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={
+                                  reduceMotion
+                                    ? { opacity: 0 }
+                                    : { opacity: 0, scale: 0.9 }
+                                }
+                                whileTap={
+                                  reduceMotion ? undefined : { scale: 0.96 }
+                                }
+                                transition={itemTransition}
+                              >
+                                <div
+                                  className={cn(
+                                    "mb-1.5 flex items-center justify-center rounded-xl transition-colors duration-300",
+                                    totalCount <= 4
+                                      ? "h-12 w-12 sm:h-14 sm:w-14"
+                                      : "h-9 w-9 sm:h-10 sm:w-10",
+                                    active
+                                      ? "bg-sky-400/25 text-sky-200"
+                                      : "bg-white/10 text-slate-300"
+                                  )}
+                                >
+                                  <Music2
+                                    className={cn(
+                                      "transition-transform duration-300",
+                                      totalCount <= 4
+                                        ? "h-6 w-6"
+                                        : "h-4 w-4 sm:h-5 sm:w-5",
+                                      previewing && "animate-pulse scale-110"
+                                    )}
+                                  />
+                                </div>
+                                <p
+                                  className={cn(
+                                    "w-full break-words font-medium leading-snug text-slate-100",
+                                    totalCount <= 4
+                                      ? "line-clamp-2 text-sm sm:text-base"
+                                      : "line-clamp-2 text-[11px] sm:text-xs"
+                                  )}
+                                >
+                                  {audio.name}
+                                </p>
+                                <AnimatePresence initial={false}>
+                                  {active && (
+                                    <motion.span
+                                      key="active-label"
+                                      initial={
+                                        reduceMotion
+                                          ? false
+                                          : { opacity: 0, y: 4 }
+                                      }
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -2 }}
+                                      transition={{ duration: motionDur * 0.8 }}
+                                      className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-sky-300 sm:text-xs"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                      {previewing ? "试听中" : "当前"}
+                                    </motion.span>
+                                  )}
+                                </AnimatePresence>
+                              </motion.button>
+                            );
+                          })}
+                        </AnimatePresence>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </LayoutGroup>
               </div>
 
               <div className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm sm:rounded-2xl sm:px-4 sm:py-3">
