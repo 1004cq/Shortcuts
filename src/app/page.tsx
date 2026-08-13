@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { copyToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
+import { LazyMediaThumb } from "@/components/media/LazyMediaThumb";
 import {
   Check,
   Copy,
@@ -52,7 +53,17 @@ type MediaItem = {
   size?: number;
   mimeType?: string;
   category?: string;
+  thumbnailPath?: string | null;
 };
+
+function thumbSrcFor(item: MediaItem): string | null {
+  const kind = kindOf(item);
+  if (kind === "image") return `/api/files/${item._id}/preview`;
+  if (kind === "video" && item.thumbnailPath) {
+    return `/api/files/${item._id}/preview`;
+  }
+  return null;
+}
 
 function kindOf(item: {
   category?: string | null;
@@ -176,6 +187,7 @@ export default function HomePage() {
             size?: number;
             mimeType?: string;
             category?: string;
+            thumbnailPath?: string | null;
           }) => ({
             _id: f._id,
             name: f.name,
@@ -183,6 +195,7 @@ export default function HomePage() {
             size: f.size,
             mimeType: f.mimeType,
             category: f.category,
+            thumbnailPath: f.thumbnailPath || null,
           })
         )
       );
@@ -471,6 +484,11 @@ export default function HomePage() {
                             const active = item._id === shortlink?.fileId;
                             const previewing = previewingId === item._id;
                             const kind = kindOf(item);
+                            const thumbSrc = thumbSrcFor(item);
+                            const iconSize =
+                              totalCount <= 4
+                                ? "h-6 w-6"
+                                : "h-4 w-4 sm:h-5 sm:w-5";
                             return (
                               <motion.button
                                 key={item._id}
@@ -512,32 +530,55 @@ export default function HomePage() {
                                 >
                                   {kindLabel(kind)}
                                 </span>
-                                <div
-                                  className={cn(
-                                    "mb-1.5 flex items-center justify-center rounded-xl transition-colors duration-300",
-                                    totalCount <= 4
-                                      ? "h-12 w-12 sm:h-14 sm:w-14"
-                                      : "h-9 w-9 sm:h-10 sm:w-10",
-                                    active
-                                      ? kind === "video"
-                                        ? "bg-violet-400/25 text-violet-200"
-                                        : kind === "image"
-                                          ? "bg-emerald-400/25 text-emerald-200"
-                                          : "bg-sky-400/25 text-sky-200"
-                                      : "bg-white/10 text-slate-300"
-                                  )}
-                                >
-                                  <KindIcon
-                                    kind={kind}
+                                {thumbSrc ? (
+                                  <LazyMediaThumb
+                                    src={thumbSrc}
+                                    alt={item.name}
+                                    rootMargin="280px 0px"
                                     className={cn(
-                                      "transition-transform duration-300",
+                                      "mb-1.5 rounded-xl",
                                       totalCount <= 4
-                                        ? "h-6 w-6"
-                                        : "h-4 w-4 sm:h-5 sm:w-5",
-                                      previewing && "animate-pulse scale-110"
+                                        ? "h-14 w-14 sm:h-16 sm:w-16"
+                                        : "h-11 w-11 sm:h-12 sm:w-12"
                                     )}
+                                    fallback={
+                                      <KindIcon
+                                        kind={kind}
+                                        className={cn(
+                                          iconSize,
+                                          kind === "image"
+                                            ? "text-emerald-300"
+                                            : "text-violet-300"
+                                        )}
+                                      />
+                                    }
                                   />
-                                </div>
+                                ) : (
+                                  <div
+                                    className={cn(
+                                      "mb-1.5 flex items-center justify-center rounded-xl transition-colors duration-300",
+                                      totalCount <= 4
+                                        ? "h-12 w-12 sm:h-14 sm:w-14"
+                                        : "h-9 w-9 sm:h-10 sm:w-10",
+                                      active
+                                        ? kind === "video"
+                                          ? "bg-violet-400/25 text-violet-200"
+                                          : kind === "image"
+                                            ? "bg-emerald-400/25 text-emerald-200"
+                                            : "bg-sky-400/25 text-sky-200"
+                                        : "bg-white/10 text-slate-300"
+                                    )}
+                                  >
+                                    <KindIcon
+                                      kind={kind}
+                                      className={cn(
+                                        "transition-transform duration-300",
+                                        iconSize,
+                                        previewing && "animate-pulse scale-110"
+                                      )}
+                                    />
+                                  </div>
+                                )}
                                 <p
                                   className={cn(
                                     "w-full break-words font-medium leading-snug text-slate-100",
@@ -620,16 +661,15 @@ export default function HomePage() {
                 )}
                 {previewKind === "image" && previewingId && !saving && (
                   <div className="mt-2 space-y-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/files/${previewingId}/stream`}
+                    <LazyMediaThumb
+                      priority
+                      src={`/api/files/${previewingId}/preview`}
                       alt={shortlink?.fileName || "图片预览"}
-                      className="max-h-48 w-full rounded-lg object-contain bg-black/40"
-                      onError={() => {
-                        setPreviewError("图片预览失败，请检查网络或稍后重试");
-                        setPreviewingId(null);
-                        setPreviewKind(null);
-                      }}
+                      className="max-h-48 min-h-[8rem] w-full rounded-lg bg-black/40"
+                      imgClassName="object-contain"
+                      fallback={
+                        <ImageIcon className="h-8 w-8 text-emerald-300/80" />
+                      }
                     />
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs text-emerald-300">正在预览图片…</p>
