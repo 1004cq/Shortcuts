@@ -833,7 +833,7 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>选择音频 / 视频（从已上传列表）</Label>
+                  <Label>选择音频 / 视频 / 图片（从已上传列表）</Label>
                   <AudioFilePicker value={slAudio?._id || null} onChange={setSlAudio} />
                 </div>
 
@@ -907,7 +907,7 @@ export default function AdminUsersPage() {
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>选择音频 / 视频</DialogTitle>
+            <DialogTitle>选择音频 / 视频 / 图片</DialogTitle>
             <DialogDescription>
               {audioTarget?.name} · 短链接{" "}
               {audioTarget?.shortlink?.userId}

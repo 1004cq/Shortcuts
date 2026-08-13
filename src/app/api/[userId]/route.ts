@@ -52,7 +52,7 @@ export async function GET(req: Request, ctx: Ctx) {
     }
 
     if (!doc.fileId) {
-      return new NextResponse("该用户未绑定音频或视频", {
+      return new NextResponse("该用户未绑定音频、视频或图片", {
         status: 404,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });

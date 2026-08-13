@@ -218,7 +218,7 @@ export async function resolveShortlinkApiToken(): Promise<string> {
   return ensureUserApiToken(String(admin._id));
 }
 
-/** Audio or video that can be bound to a user shortlink. */
+/** Audio, video, or image that can be bound to a user shortlink. */
 export function isShortlinkMediaFile(file: {
   category?: string | null;
   mimeType?: string | null;
@@ -228,17 +228,22 @@ export function isShortlinkMediaFile(file: {
   return (
     cat === "audio" ||
     cat === "video" ||
+    cat === "image" ||
     mime.startsWith("audio/") ||
-    mime.startsWith("video/")
+    mime.startsWith("video/") ||
+    mime.startsWith("image/")
   );
 }
+
+export type ShortlinkMediaKind = "audio" | "video" | "image";
 
 export function shortlinkMediaKind(file: {
   category?: string | null;
   mimeType?: string | null;
-}): "audio" | "video" | null {
+}): ShortlinkMediaKind | null {
   const cat = String(file.category || "");
   const mime = String(file.mimeType || "");
+  if (cat === "image" || mime.startsWith("image/")) return "image";
   if (cat === "video" || mime.startsWith("video/")) return "video";
   if (cat === "audio" || mime.startsWith("audio/")) return "audio";
   return null;
@@ -264,7 +269,7 @@ export async function buildFileDownloadRedirectUrl(
     throw new ApiError("绑定的媒体文件不存在", 404);
   }
   if (!isShortlinkMediaFile(file)) {
-    throw new ApiError("绑定的文件不是音频或视频", 400);
+    throw new ApiError("绑定的文件不是音频、视频或图片", 400);
   }
 
   const token = await resolveShortlinkApiToken();

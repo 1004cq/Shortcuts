@@ -35,7 +35,7 @@ async function assertFileExists(fileId: string) {
     throw new ApiError("媒体文件不存在", 404);
   }
   if (!isShortlinkMediaFile(file)) {
-    throw new ApiError("只能绑定音频或视频文件", 400);
+    throw new ApiError("只能绑定音频、视频或图片文件", 400);
   }
   return file;
 }

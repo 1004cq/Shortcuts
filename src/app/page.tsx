@@ -18,6 +18,7 @@ import {
   Check,
   Copy,
   Film,
+  ImageIcon,
   Link2,
   Loader2,
   Music2,
@@ -28,6 +29,8 @@ import {
 const GRID_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const GRID_DURATION = 0.28;
 
+type MediaKind = "audio" | "video" | "image";
+
 type ShortlinkInfo = {
   shortUrl: string;
   shortlinkUserId: string;
@@ -35,7 +38,7 @@ type ShortlinkInfo = {
   fileName: string | null;
   category?: string | null;
   mimeType?: string | null;
-  mediaKind?: "audio" | "video" | null;
+  mediaKind?: MediaKind | null;
   remainingTimes: number;
   usedTimes: number;
   hasMedia?: boolean;
@@ -54,15 +57,38 @@ type MediaItem = {
 function kindOf(item: {
   category?: string | null;
   mimeType?: string | null;
-  mediaKind?: "audio" | "video" | null;
-}): "audio" | "video" {
-  if (item.mediaKind === "video" || item.mediaKind === "audio") {
+  mediaKind?: MediaKind | null;
+}): MediaKind {
+  if (
+    item.mediaKind === "video" ||
+    item.mediaKind === "audio" ||
+    item.mediaKind === "image"
+  ) {
     return item.mediaKind;
   }
   const cat = String(item.category || "");
   const mime = String(item.mimeType || "");
+  if (cat === "image" || mime.startsWith("image/")) return "image";
   if (cat === "video" || mime.startsWith("video/")) return "video";
   return "audio";
+}
+
+function kindLabel(kind: MediaKind): string {
+  if (kind === "video") return "视频";
+  if (kind === "image") return "图片";
+  return "音频";
+}
+
+function KindIcon({
+  kind,
+  className,
+}: {
+  kind: MediaKind;
+  className?: string;
+}) {
+  if (kind === "video") return <Film className={className} />;
+  if (kind === "image") return <ImageIcon className={className} />;
+  return <Music2 className={className} />;
 }
 
 /** Adaptive grid columns from total media count. */
@@ -110,9 +136,7 @@ export default function HomePage() {
   const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
   const previewVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const [previewingId, setPreviewingId] = React.useState<string | null>(null);
-  const [previewKind, setPreviewKind] = React.useState<"audio" | "video" | null>(
-    null
-  );
+  const [previewKind, setPreviewKind] = React.useState<MediaKind | null>(null);
   const [previewError, setPreviewError] = React.useState("");
   const searchRef = React.useRef<HTMLInputElement>(null);
 
@@ -183,12 +207,12 @@ export default function HomePage() {
       const name = (a.name || "").toLowerCase();
       const orig = (a.originalName || "").toLowerCase();
       const kind = kindOf(a);
-      const kindLabel = kind === "video" ? "视频" : "音频";
+      const label = kindLabel(kind);
       return (
         name.includes(q) ||
         orig.includes(q) ||
         kind.includes(q) ||
-        kindLabel.includes(q)
+        label.includes(q)
       );
     });
   }, [medias, query]);
@@ -228,7 +252,6 @@ export default function HomePage() {
     setPreviewError("");
     const kind = kindOf(item);
     try {
-      // Stop previous playback without clearing the upcoming preview state
       const audio = previewAudioRef.current;
       if (audio) {
         audio.pause();
@@ -246,8 +269,8 @@ export default function HomePage() {
       setPreviewKind(kind);
       const src = `/api/files/${item._id}/stream`;
 
-      if (kind === "video") {
-        // Actual play happens in effect after <video> mounts / updates
+      if (kind === "video" || kind === "image") {
+        // Video plays in effect; image just shows <img>
         return;
       }
 
@@ -262,7 +285,9 @@ export default function HomePage() {
       setPreviewError(
         kind === "video"
           ? "视频预览失败，请检查网络或稍后重试"
-          : "试听失败，请检查网络或稍后重试"
+          : kind === "image"
+            ? "图片预览失败，请检查网络或稍后重试"
+            : "试听失败，请检查网络或稍后重试"
       );
     }
   };
@@ -355,8 +380,8 @@ export default function HomePage() {
               <ol className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400 sm:mt-4 sm:text-xs">
                 <li>1. 快捷指令添加「获取 URL 内容」</li>
                 <li>2. 粘贴上方短链接</li>
-                <li>3. 再添加「快速查看」或「打开」</li>
-                <li>4. 音频/视频都可用同一短链接，下方切换后不用改快捷指令</li>
+                <li>3. 音频用「播放声音」（不弹窗）；视频/图片用「快速查看」</li>
+                <li>4. 同一短链接可切换音频/视频/图片，切换后不用改快捷指令</li>
               </ol>
             </>
           ) : (
@@ -371,13 +396,13 @@ export default function HomePage() {
                 切换媒体
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">
-                点选音频试听 / 视频预览，短链接不变
+                点选即可切换并预览，短链接不变
                 {totalCount > 0 ? ` · 共 ${totalCount} 个` : ""}
               </p>
             </div>
             {shortlink?.fileId && (
               <Badge variant="secondary" className="shrink-0 text-[10px]">
-                {boundKind === "video" ? "视频" : "音频"}
+                {kindLabel(boundKind)}
               </Badge>
             )}
           </div>
@@ -389,7 +414,7 @@ export default function HomePage() {
             </div>
           ) : medias.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 px-4 py-8 text-center text-sm text-slate-500">
-              暂无可用音频/视频，请联系管理员上传
+              暂无可用音频/视频/图片，请联系管理员上传
             </div>
           ) : (
             <>
@@ -407,7 +432,7 @@ export default function HomePage() {
                   placeholder={
                     showDenseSearch
                       ? "搜索名称或类型（库较多）…"
-                      : "搜索名称 / 音频 / 视频…"
+                      : "搜索名称 / 音频 / 视频 / 图片…"
                   }
                   className="h-11 border-white/10 bg-black/25 pl-9 text-sm"
                   autoFocus={showDenseSearch}
@@ -446,7 +471,6 @@ export default function HomePage() {
                             const active = item._id === shortlink?.fileId;
                             const previewing = previewingId === item._id;
                             const kind = kindOf(item);
-                            const Icon = kind === "video" ? Film : Music2;
                             return (
                               <motion.button
                                 key={item._id}
@@ -481,10 +505,12 @@ export default function HomePage() {
                                     "mb-1 rounded px-1 py-px text-[9px] font-semibold sm:text-[10px]",
                                     kind === "video"
                                       ? "bg-violet-500/25 text-violet-200"
-                                      : "bg-sky-500/25 text-sky-200"
+                                      : kind === "image"
+                                        ? "bg-emerald-500/25 text-emerald-200"
+                                        : "bg-sky-500/25 text-sky-200"
                                   )}
                                 >
-                                  {kind === "video" ? "视频" : "音频"}
+                                  {kindLabel(kind)}
                                 </span>
                                 <div
                                   className={cn(
@@ -495,11 +521,14 @@ export default function HomePage() {
                                     active
                                       ? kind === "video"
                                         ? "bg-violet-400/25 text-violet-200"
-                                        : "bg-sky-400/25 text-sky-200"
+                                        : kind === "image"
+                                          ? "bg-emerald-400/25 text-emerald-200"
+                                          : "bg-sky-400/25 text-sky-200"
                                       : "bg-white/10 text-slate-300"
                                   )}
                                 >
-                                  <Icon
+                                  <KindIcon
+                                    kind={kind}
                                     className={cn(
                                       "transition-transform duration-300",
                                       totalCount <= 4
@@ -535,9 +564,9 @@ export default function HomePage() {
                                     >
                                       <Check className="h-3 w-3" />
                                       {previewing
-                                        ? kind === "video"
-                                          ? "预览中"
-                                          : "试听中"
+                                        ? kind === "audio"
+                                          ? "试听中"
+                                          : "预览中"
                                         : "当前"}
                                     </motion.span>
                                   )}
@@ -556,11 +585,11 @@ export default function HomePage() {
                 <p className="text-[11px] text-slate-500">当前绑定</p>
                 <p className="mt-0.5 truncate font-medium text-slate-100">
                   {shortlink?.fileName ||
-                    (hasBound ? "（文件缺失）" : "尚未选择音频/视频")}
+                    (hasBound ? "（文件缺失）" : "尚未选择音频/视频/图片")}
                 </p>
                 {shortlink?.fileId && (
                   <p className="mt-0.5 text-[11px] text-slate-500">
-                    类型：{boundKind === "video" ? "视频" : "音频"}
+                    类型：{kindLabel(boundKind)}
                   </p>
                 )}
                 {saving && (
@@ -585,6 +614,31 @@ export default function HomePage() {
                         onClick={stopPreview}
                       >
                         停止
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {previewKind === "image" && previewingId && !saving && (
+                  <div className="mt-2 space-y-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/files/${previewingId}/stream`}
+                      alt={shortlink?.fileName || "图片预览"}
+                      className="max-h-48 w-full rounded-lg object-contain bg-black/40"
+                      onError={() => {
+                        setPreviewError("图片预览失败，请检查网络或稍后重试");
+                        setPreviewingId(null);
+                        setPreviewKind(null);
+                      }}
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-emerald-300">正在预览图片…</p>
+                      <button
+                        type="button"
+                        className="text-xs text-slate-400 underline"
+                        onClick={stopPreview}
+                      >
+                        关闭
                       </button>
                     </div>
                   </div>

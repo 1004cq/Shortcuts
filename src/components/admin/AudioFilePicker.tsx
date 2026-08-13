@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Film, Loader2, Music2 } from "lucide-react";
+import { Check, Film, ImageIcon, Loader2, Music2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn, formatBytes } from "@/lib/utils";
@@ -15,8 +15,10 @@ export type AudioFileOption = {
   category?: string;
 };
 
-/** @deprecated alias — picker now loads audio + video */
+/** @deprecated alias — picker loads audio + video + image */
 export type MediaFileOption = AudioFileOption;
+
+type MediaKind = "audio" | "video" | "image";
 
 type Props = {
   value: string | null;
@@ -26,16 +28,35 @@ type Props = {
   className?: string;
 };
 
-function mediaKindOf(f: AudioFileOption): "audio" | "video" {
+function mediaKindOf(f: AudioFileOption): MediaKind {
   const cat = String(f.category || "");
   const mime = String(f.mimeType || "");
+  if (cat === "image" || mime.startsWith("image/")) return "image";
   if (cat === "video" || mime.startsWith("video/")) return "video";
   return "audio";
 }
 
+function kindLabel(kind: MediaKind): string {
+  if (kind === "video") return "视频";
+  if (kind === "image") return "图片";
+  return "音频";
+}
+
+function KindIcon({
+  kind,
+  className,
+}: {
+  kind: MediaKind;
+  className?: string;
+}) {
+  if (kind === "video") return <Film className={className} />;
+  if (kind === "image") return <ImageIcon className={className} />;
+  return <Music2 className={className} />;
+}
+
 /**
  * Media file picker — search + list + optional swipe cards.
- * Loads shortlink-bindable audio and video files.
+ * Loads shortlink-bindable audio, video, and image files.
  */
 export function AudioFilePicker({
   value,
@@ -113,7 +134,7 @@ export function AudioFilePicker({
       <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="搜索音频 / 视频文件名…"
+        placeholder="搜索音频 / 视频 / 图片…"
         className="bg-background/60"
       />
 
@@ -122,7 +143,7 @@ export function AudioFilePicker({
           <span className="text-muted-foreground">已选：</span>
           <span className="font-medium text-foreground">{selected.name}</span>
           <span className="ml-2 text-xs text-sky-300">
-            {mediaKindOf(selected) === "video" ? "视频" : "音频"}
+            {kindLabel(mediaKindOf(selected))}
           </span>
         </div>
       )}
@@ -141,7 +162,7 @@ export function AudioFilePicker({
         </div>
       ) : items.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          暂无音频/视频，请先在「文件管理」上传
+          暂无音频/视频/图片，请先在「文件管理」上传
         </p>
       ) : (
         <>
@@ -153,7 +174,6 @@ export function AudioFilePicker({
               {items.map((f) => {
                 const active = f._id === value;
                 const kind = mediaKindOf(f);
-                const Icon = kind === "video" ? Film : Music2;
                 return (
                   <button
                     key={`card-${f._id}`}
@@ -173,13 +193,20 @@ export function AudioFilePicker({
                           "flex h-12 w-12 items-center justify-center rounded-xl",
                           kind === "video"
                             ? "bg-gradient-to-br from-violet-400/30 to-fuchsia-500/30"
-                            : "bg-gradient-to-br from-sky-400/30 to-cyan-500/30"
+                            : kind === "image"
+                              ? "bg-gradient-to-br from-emerald-400/30 to-teal-500/30"
+                              : "bg-gradient-to-br from-sky-400/30 to-cyan-500/30"
                         )}
                       >
-                        <Icon
+                        <KindIcon
+                          kind={kind}
                           className={cn(
                             "h-6 w-6",
-                            kind === "video" ? "text-violet-300" : "text-sky-300"
+                            kind === "video"
+                              ? "text-violet-300"
+                              : kind === "image"
+                                ? "text-emerald-300"
+                                : "text-sky-300"
                           )}
                         />
                       </div>
@@ -188,10 +215,12 @@ export function AudioFilePicker({
                           "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
                           kind === "video"
                             ? "bg-violet-500/20 text-violet-200"
-                            : "bg-sky-500/20 text-sky-200"
+                            : kind === "image"
+                              ? "bg-emerald-500/20 text-emerald-200"
+                              : "bg-sky-500/20 text-sky-200"
                         )}
                       >
-                        {kind === "video" ? "视频" : "音频"}
+                        {kindLabel(kind)}
                       </span>
                     </div>
                     <p className="line-clamp-2 text-sm font-semibold leading-snug">
@@ -216,7 +245,6 @@ export function AudioFilePicker({
             {items.map((f) => {
               const active = f._id === value;
               const kind = mediaKindOf(f);
-              const Icon = kind === "video" ? Film : Music2;
               return (
                 <button
                   key={`row-${f._id}`}
@@ -229,13 +257,16 @@ export function AudioFilePicker({
                       : "hover:bg-white/5"
                   )}
                 >
-                  <Icon
+                  <KindIcon
+                    kind={kind}
                     className={cn(
                       "h-4 w-4 shrink-0",
                       active
                         ? kind === "video"
                           ? "text-violet-300"
-                          : "text-sky-300"
+                          : kind === "image"
+                            ? "text-emerald-300"
+                            : "text-sky-300"
                         : "text-muted-foreground"
                     )}
                   />
@@ -243,10 +274,14 @@ export function AudioFilePicker({
                   <span
                     className={cn(
                       "shrink-0 text-[10px]",
-                      kind === "video" ? "text-violet-300/90" : "text-sky-300/90"
+                      kind === "video"
+                        ? "text-violet-300/90"
+                        : kind === "image"
+                          ? "text-emerald-300/90"
+                          : "text-sky-300/90"
                     )}
                   >
-                    {kind === "video" ? "视频" : "音频"}
+                    {kindLabel(kind)}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {typeof f.size === "number" ? formatBytes(f.size) : ""}

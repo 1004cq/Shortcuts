@@ -60,8 +60,8 @@ export const GET = withApiHandler(async (req: Request) => {
   const filter: Record<string, unknown> = { isPublic: true };
 
   if (category === "media") {
-    // Shortlink-bindable: audio + video
-    filter.category = { $in: ["audio", "video"] };
+    // Shortlink-bindable: audio + video + image
+    filter.category = { $in: ["audio", "video", "image"] };
   } else if (category && category !== "all") {
     filter.category = category;
   }

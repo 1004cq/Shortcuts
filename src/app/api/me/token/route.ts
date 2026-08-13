@@ -7,6 +7,7 @@ import {
   ensureShortlinkForMediaVaultUser,
   isShortlinkMediaFile,
   shortlinkMediaKind,
+  type ShortlinkMediaKind,
 } from "@/lib/shortlink";
 import { User } from "@/models/User";
 import { FileModel } from "@/models/File";
@@ -27,7 +28,7 @@ export const GET = withApiHandler(async () => {
 
   let fileName: string | null = null;
   let fileId: string | null = shortlink.fileId ? String(shortlink.fileId) : null;
-  let mediaKind: "audio" | "video" | null = null;
+  let mediaKind: ShortlinkMediaKind | null = null;
   if (fileId) {
     const file = await FileModel.findById(fileId)
       .select("name originalName category mimeType")

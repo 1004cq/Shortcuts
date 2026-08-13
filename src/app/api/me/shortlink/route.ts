@@ -17,6 +17,7 @@ import {
   ensureShortlinkForMediaVaultUser,
   isShortlinkMediaFile,
   shortlinkMediaKind,
+  type ShortlinkMediaKind,
 } from "@/lib/shortlink";
 
 async function serializeForUser(mediaVaultUserId: string) {
@@ -31,7 +32,7 @@ async function serializeForUser(mediaVaultUserId: string) {
   let fileId: string | null = shortlink.fileId ? String(shortlink.fileId) : null;
   let category: string | null = null;
   let mimeType: string | null = null;
-  let mediaKind: "audio" | "video" | null = null;
+  let mediaKind: ShortlinkMediaKind | null = null;
 
   if (fileId) {
     const file = await FileModel.findById(fileId)
@@ -73,11 +74,11 @@ export const GET = withApiHandler(async () => {
 });
 
 const patchSchema = z.object({
-  fileId: z.string().min(1, "请选择音频或视频"),
+  fileId: z.string().min(1, "请选择音频、视频或图片"),
 });
 
 /**
- * PATCH /api/me/shortlink — switch bound audio/video; short URL path never changes.
+ * PATCH /api/me/shortlink — switch bound media; short URL path never changes.
  */
 export const PATCH = withApiHandler(async (req: Request) => {
   const sessionUser = await requireAuth();
@@ -95,7 +96,7 @@ export const PATCH = withApiHandler(async (req: Request) => {
     throw new ApiError("媒体文件不存在", 404);
   }
   if (!isShortlinkMediaFile(file)) {
-    throw new ApiError("只能绑定音频或视频文件", 400);
+    throw new ApiError("只能绑定音频、视频或图片文件", 400);
   }
 
   const user = await User.findById(sessionUser.id).lean();
