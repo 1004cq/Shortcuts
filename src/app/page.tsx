@@ -5,14 +5,16 @@ import { useSession } from "next-auth/react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { copyToClipboard } from "@/lib/clipboard";
-import { cn, formatBytes } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   Check,
   Copy,
   Link2,
   Loader2,
   Music2,
+  Search,
 } from "lucide-react";
 
 type ShortlinkInfo = {
@@ -33,6 +35,37 @@ type AudioItem = {
   mimeType?: string;
 };
 
+/** Adaptive grid columns from total audio count (search-filtered list uses same density). */
+function gridClassForCount(count: number): string {
+  if (count <= 4) {
+    // Large cards / 2 columns
+    return "grid-cols-2 gap-3";
+  }
+  if (count <= 9) {
+    // Prefer 3 cols; 2 on very narrow phones for finger size
+    return "grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3";
+  }
+  // 10+ → up to 4 cols; keep 2–3 on small screens so taps stay comfortable
+  return "grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 md:grid-cols-4 md:gap-3";
+}
+
+function cellClassForCount(count: number, active: boolean): string {
+  const size =
+    count <= 4
+      ? "min-h-[7.5rem] p-3.5 sm:min-h-[8.5rem] sm:p-4"
+      : count <= 9
+        ? "min-h-[5.75rem] p-2.5 sm:min-h-[6.25rem] sm:p-3"
+        : "min-h-[5.25rem] p-2 sm:min-h-[5.5rem] sm:p-2.5";
+
+  return cn(
+    "flex flex-col items-center justify-center rounded-2xl border text-center transition active:scale-[0.98]",
+    size,
+    active
+      ? "border-sky-400 bg-sky-500/20 shadow-[0_0_0_1px_rgba(56,189,248,0.35)]"
+      : "border-white/10 bg-white/5 hover:border-white/25"
+  );
+}
+
 export default function HomePage() {
   const { status } = useSession();
   const [shortlink, setShortlink] = React.useState<ShortlinkInfo | null>(null);
@@ -42,10 +75,11 @@ export default function HomePage() {
   const [error, setError] = React.useState("");
   const [msg, setMsg] = React.useState("");
   const [copied, setCopied] = React.useState(false);
-  const railRef = React.useRef<HTMLDivElement>(null);
+  const [query, setQuery] = React.useState("");
   const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
   const [previewingId, setPreviewingId] = React.useState<string | null>(null);
   const [previewError, setPreviewError] = React.useState("");
+  const searchRef = React.useRef<HTMLInputElement>(null);
 
   const flash = (text: string) => {
     setMsg(text);
@@ -93,17 +127,21 @@ export default function HomePage() {
     if (status === "authenticated") void load();
   }, [status, load]);
 
-  // Scroll selected card inside the rail only — never scroll the page sideways
-  React.useEffect(() => {
-    const rail = railRef.current;
-    if (!shortlink?.fileId || !rail) return;
-    const el = rail.querySelector<HTMLElement>(
-      `[data-audio-id="${shortlink.fileId}"]`
-    );
-    if (!el) return;
-    const left = el.offsetLeft - (rail.clientWidth - el.offsetWidth) / 2;
-    rail.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
-  }, [shortlink?.fileId, audios]);
+  const totalCount = audios.length;
+  const showDenseSearch = totalCount >= 17;
+
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return audios;
+    return audios.filter((a) => {
+      const name = (a.name || "").toLowerCase();
+      const orig = (a.originalName || "").toLowerCase();
+      return name.includes(q) || orig.includes(q);
+    });
+  }, [audios, query]);
+
+  // Layout density follows total library size, not filtered length
+  const gridClass = gridClassForCount(totalCount);
 
   const copyLink = async () => {
     if (!shortlink?.shortUrl) return;
@@ -149,7 +187,12 @@ export default function HomePage() {
   }, []);
 
   const selectAudio = async (audio: AudioItem) => {
-    if (!shortlink || saving || audio._id === shortlink.fileId) return;
+    if (!shortlink || saving) return;
+    // Already selected → just preview again
+    if (audio._id === shortlink.fileId) {
+      void playPreview(audio._id);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -172,7 +215,7 @@ export default function HomePage() {
 
   return (
     <AppShell title="我的短链接" showSearch={false} showUpload={false}>
-      <div className="mx-auto w-full min-w-0 max-w-md space-y-4 overflow-x-hidden animate-slide-up sm:max-w-lg sm:space-y-5">
+      <div className="mx-auto w-full min-w-0 max-w-md space-y-4 overflow-x-hidden animate-slide-up sm:max-w-xl sm:space-y-5">
         {/* Shortlink */}
         <section className="min-w-0 overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-b from-sky-500/15 via-sky-950/40 to-transparent p-4 sm:rounded-3xl sm:p-5">
           <div className="mb-3 flex items-center gap-2 text-sky-200">
@@ -222,15 +265,16 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* Audio switcher */}
-        <section className="min-w-0 space-y-2.5 overflow-hidden">
+        {/* Audio grid switcher */}
+        <section className="min-w-0 space-y-2.5">
           <div className="flex min-w-0 items-end justify-between gap-2">
             <div className="min-w-0">
               <h2 className="font-display text-sm font-semibold text-slate-100 sm:text-base">
                 切换音频
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">
-                左右滑动选择并自动试听，短链接不变
+                点选即可切换并试听，短链接不变
+                {totalCount > 0 ? ` · 共 ${totalCount} 首` : ""}
               </p>
             </div>
             {shortlink?.fileId && (
@@ -251,58 +295,91 @@ export default function HomePage() {
             </div>
           ) : (
             <>
-              {/* Isolate horizontal scroll so it cannot widen the page */}
-              <div className="relative -mx-3 min-w-0 overflow-hidden sm:mx-0">
-                <div
-                  ref={railRef}
-                  className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-3 pb-1 touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-3 sm:px-0 [&::-webkit-scrollbar]:hidden"
-                >
-                  {audios.map((audio) => {
-                    const active = audio._id === shortlink?.fileId;
-                    return (
-                      <button
-                        key={audio._id}
-                        type="button"
-                        data-audio-id={audio._id}
-                        disabled={saving}
-                        onClick={() => void selectAudio(audio)}
-                        className={cn(
-                          "w-[78vw] max-w-[280px] shrink-0 snap-center rounded-2xl border p-4 text-left transition active:scale-[0.98] sm:w-[220px] sm:p-5",
-                          active
-                            ? "border-sky-400 bg-sky-500/20 shadow-[0_0_0_1px_rgba(56,189,248,0.35)]"
-                            : "border-white/10 bg-white/5"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "mb-3 flex h-11 w-11 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl",
-                            active
-                              ? "bg-sky-400/25 text-sky-200"
-                              : "bg-white/10 text-slate-300"
-                          )}
+              {/* Search — always visible; emphasized when library is large */}
+              <div
+                className={cn(
+                  "relative",
+                  showDenseSearch && "rounded-xl border border-sky-500/30 bg-sky-500/5 p-1"
+                )}
+              >
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Input
+                  ref={searchRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={
+                    showDenseSearch
+                      ? "搜索音频名称（曲库较多）…"
+                      : "搜索音频名称…"
+                  }
+                  className="h-11 border-white/10 bg-black/25 pl-9 text-sm"
+                  autoFocus={showDenseSearch}
+                />
+              </div>
+
+              <div
+                className={cn(
+                  "min-w-0",
+                  showDenseSearch &&
+                    "max-h-[min(52vh,28rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-black/10 p-2 sm:max-h-[32rem]"
+                )}
+              >
+                {filtered.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-500">
+                    没有匹配「{query.trim()}」的音频
+                  </p>
+                ) : (
+                  <div className={cn("grid", gridClass)}>
+                    {filtered.map((audio) => {
+                      const active = audio._id === shortlink?.fileId;
+                      const previewing = previewingId === audio._id;
+                      return (
+                        <button
+                          key={audio._id}
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void selectAudio(audio)}
+                          className={cellClassForCount(totalCount, active)}
+                          title={audio.name}
                         >
-                          <Music2 className="h-5 w-5 sm:h-6 sm:w-6" />
-                        </div>
-                        <p className="line-clamp-2 break-words text-sm font-semibold leading-snug text-slate-100 sm:text-base">
-                          {audio.name}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500 sm:text-xs">
-                          {typeof audio.size === "number"
-                            ? formatBytes(audio.size)
-                            : "音频"}
-                        </p>
-                        {active && (
-                          <span className="mt-2 inline-flex items-center gap-1 text-xs text-sky-300 sm:mt-3 sm:text-sm">
-                            <Check className="h-3.5 w-3.5" />
-                            当前播放
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                  {/* trailing spacer so last card can center */}
-                  <div className="w-3 shrink-0 sm:w-0" aria-hidden />
-                </div>
+                          <div
+                            className={cn(
+                              "mb-1.5 flex items-center justify-center rounded-xl",
+                              totalCount <= 4
+                                ? "h-12 w-12 sm:h-14 sm:w-14"
+                                : "h-9 w-9 sm:h-10 sm:w-10",
+                              active
+                                ? "bg-sky-400/25 text-sky-200"
+                                : "bg-white/10 text-slate-300"
+                            )}
+                          >
+                            <Music2
+                              className={cn(
+                                totalCount <= 4 ? "h-6 w-6" : "h-4 w-4 sm:h-5 sm:w-5"
+                              )}
+                            />
+                          </div>
+                          <p
+                            className={cn(
+                              "w-full break-words font-medium leading-snug text-slate-100",
+                              totalCount <= 4
+                                ? "line-clamp-2 text-sm sm:text-base"
+                                : "line-clamp-2 text-[11px] sm:text-xs"
+                            )}
+                          >
+                            {audio.name}
+                          </p>
+                          {active && (
+                            <span className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-sky-300 sm:text-xs">
+                              <Check className="h-3 w-3" />
+                              {previewing ? "试听中" : "当前"}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm sm:rounded-2xl sm:px-4 sm:py-3">
