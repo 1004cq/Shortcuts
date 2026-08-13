@@ -31,6 +31,14 @@ const GRID_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const GRID_DURATION = 0.28;
 
 type MediaKind = "audio" | "video" | "image";
+type FilterKind = "all" | MediaKind;
+
+const FILTER_TABS: { id: FilterKind; label: string }[] = [
+  { id: "all", label: "全部" },
+  { id: "audio", label: "音频" },
+  { id: "video", label: "视频" },
+  { id: "image", label: "图片" },
+];
 
 type ShortlinkInfo = {
   shortUrl: string;
@@ -144,6 +152,8 @@ export default function HomePage() {
   const [msg, setMsg] = React.useState("");
   const [copied, setCopied] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  /** Default「全部」— easy to scan mixed libraries; switch tabs to narrow. */
+  const [filter, setFilter] = React.useState<FilterKind>("all");
   const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
   const previewVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const [previewingId, setPreviewingId] = React.useState<string | null>(null);
@@ -211,12 +221,25 @@ export default function HomePage() {
   }, [status, load]);
 
   const totalCount = medias.length;
-  const showDenseSearch = totalCount >= 17;
+
+  const kindCounts = React.useMemo(() => {
+    const c = { all: medias.length, audio: 0, video: 0, image: 0 };
+    for (const m of medias) {
+      c[kindOf(m)] += 1;
+    }
+    return c;
+  }, [medias]);
+
+  /** Category scope first, then name search within that set. */
+  const scoped = React.useMemo(() => {
+    if (filter === "all") return medias;
+    return medias.filter((m) => kindOf(m) === filter);
+  }, [medias, filter]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return medias;
-    return medias.filter((a) => {
+    if (!q) return scoped;
+    return scoped.filter((a) => {
       const name = (a.name || "").toLowerCase();
       const orig = (a.originalName || "").toLowerCase();
       const kind = kindOf(a);
@@ -228,9 +251,12 @@ export default function HomePage() {
         label.includes(q)
       );
     });
-  }, [medias, query]);
+  }, [scoped, query]);
 
-  const gridClass = gridClassForCount(totalCount);
+  const scopeCount = scoped.length;
+  const showDenseSearch = scopeCount >= 17 || totalCount >= 17;
+  // Density follows current category scope (not search hits)
+  const gridClass = gridClassForCount(scopeCount);
 
   const copyLink = async () => {
     if (!shortlink?.shortUrl) return;
@@ -410,7 +436,9 @@ export default function HomePage() {
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">
                 点选即可切换并预览，短链接不变
-                {totalCount > 0 ? ` · 共 ${totalCount} 个` : ""}
+                {totalCount > 0
+                  ? ` · ${filter === "all" ? `共 ${totalCount}` : `${kindLabel(filter)} ${scopeCount}/${totalCount}`} 个`
+                  : ""}
               </p>
             </div>
             {shortlink?.fileId && (
@@ -432,6 +460,45 @@ export default function HomePage() {
           ) : (
             <>
               <div
+                className="grid grid-cols-4 gap-1 rounded-xl border border-white/10 bg-black/25 p-1"
+                role="tablist"
+                aria-label="媒体分类"
+              >
+                {FILTER_TABS.map((tab) => {
+                  const active = filter === tab.id;
+                  const count = kindCounts[tab.id];
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setFilter(tab.id)}
+                      className={cn(
+                        "flex min-h-10 flex-col items-center justify-center rounded-lg px-1 py-1.5 text-center transition",
+                        active
+                          ? tab.id === "video"
+                            ? "bg-violet-500/25 text-violet-100 shadow-sm"
+                            : tab.id === "image"
+                              ? "bg-emerald-500/25 text-emerald-100 shadow-sm"
+                              : tab.id === "audio"
+                                ? "bg-sky-500/25 text-sky-100 shadow-sm"
+                                : "bg-white/15 text-slate-50 shadow-sm"
+                          : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                      )}
+                    >
+                      <span className="text-[11px] font-semibold sm:text-xs">
+                        {tab.label}
+                      </span>
+                      <span className="text-[10px] tabular-nums opacity-80">
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div
                 className={cn(
                   "relative",
                   showDenseSearch && "rounded-xl border border-sky-500/30 bg-sky-500/5 p-1"
@@ -443,9 +510,11 @@ export default function HomePage() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={
-                    showDenseSearch
-                      ? "搜索名称或类型（库较多）…"
-                      : "搜索名称 / 音频 / 视频 / 图片…"
+                    filter === "all"
+                      ? showDenseSearch
+                        ? "在全部中搜索名称…"
+                        : "搜索名称…"
+                      : `在${kindLabel(filter)}中搜索…`
                   }
                   className="h-11 border-white/10 bg-black/25 pl-9 text-sm"
                   autoFocus={showDenseSearch}
@@ -470,7 +539,16 @@ export default function HomePage() {
                         transition={{ duration: motionDur }}
                         className="py-8 text-center text-sm text-slate-500"
                       >
-                        没有匹配「{query.trim()}」的媒体
+                        没有匹配
+                        {query.trim()
+                          ? `「${query.trim()}」`
+                          : filter === "all"
+                            ? ""
+                            : `「${kindLabel(filter)}」`}
+                        的媒体
+                        {filter !== "all" && query.trim()
+                          ? `（当前：${kindLabel(filter)}）`
+                          : ""}
                       </motion.p>
                     ) : (
                       <motion.div
@@ -486,18 +564,18 @@ export default function HomePage() {
                             const kind = kindOf(item);
                             const thumbSrc = thumbSrcFor(item);
                             const iconSize =
-                              totalCount <= 4
+                              scopeCount <= 4
                                 ? "h-6 w-6"
                                 : "h-4 w-4 sm:h-5 sm:w-5";
                             return (
                               <motion.button
                                 key={item._id}
                                 type="button"
-                                layout={totalCount >= 17 ? "position" : true}
+                                layout={scopeCount >= 17 ? "position" : true}
                                 disabled={saving}
                                 onClick={() => void selectMedia(item)}
                                 className={cellClassForCount(
-                                  totalCount,
+                                  scopeCount,
                                   active,
                                   previewing
                                 )}
@@ -537,7 +615,7 @@ export default function HomePage() {
                                     rootMargin="280px 0px"
                                     className={cn(
                                       "mb-1.5 rounded-xl",
-                                      totalCount <= 4
+                                      scopeCount <= 4
                                         ? "h-14 w-14 sm:h-16 sm:w-16"
                                         : "h-11 w-11 sm:h-12 sm:w-12"
                                     )}
@@ -557,7 +635,7 @@ export default function HomePage() {
                                   <div
                                     className={cn(
                                       "mb-1.5 flex items-center justify-center rounded-xl transition-colors duration-300",
-                                      totalCount <= 4
+                                      scopeCount <= 4
                                         ? "h-12 w-12 sm:h-14 sm:w-14"
                                         : "h-9 w-9 sm:h-10 sm:w-10",
                                       active
@@ -582,7 +660,7 @@ export default function HomePage() {
                                 <p
                                   className={cn(
                                     "w-full break-words font-medium leading-snug text-slate-100",
-                                    totalCount <= 4
+                                    scopeCount <= 4
                                       ? "line-clamp-2 text-sm sm:text-base"
                                       : "line-clamp-2 text-[11px] sm:text-xs"
                                   )}
