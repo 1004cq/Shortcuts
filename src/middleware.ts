@@ -26,6 +26,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/files") ||
     pathname === "/pricing" ||
     pathname.startsWith("/pricing/") ||
+    pathname === "/recharge" ||
+    pathname.startsWith("/recharge/") ||
     pathname.startsWith("/profile");
 
   // Admin console: keep auth under /admin/login
@@ -70,6 +72,8 @@ export const config = {
     "/files/:path*",
     "/pricing",
     "/pricing/:path*",
+    "/recharge",
+    "/recharge/:path*",
     "/profile",
     "/admin",
     "/admin/:path*",

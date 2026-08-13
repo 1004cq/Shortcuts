@@ -3,10 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { isAlipayConfigured, queryAlipayTrade, verifyAlipayNotify } from "@/lib/alipay";
 import { fulfillPaidSubscription } from "@/lib/membership";
+import { fulfillPlayOrder } from "@/lib/play-recharge";
 
 /**
  * GET /api/payments/alipay/return
- * Optional sync return proxy — verifies params, tries to fulfill, redirects to UI.
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   });
 
   const outTradeNo = params.out_trade_no || "";
-  const resultUrl = new URL("/pricing/result", process.env.APP_URL || url.origin);
+  const resultUrl = new URL("/recharge/result", process.env.APP_URL || url.origin);
   if (outTradeNo) resultUrl.searchParams.set("out_trade_no", outTradeNo);
 
   try {
@@ -33,11 +33,15 @@ export async function GET(req: Request) {
         const q = await queryAlipayTrade(outTradeNo);
         const tradeStatus = String(q.tradeStatus || q.trade_status || "");
         if (tradeStatus === "TRADE_SUCCESS" || tradeStatus === "TRADE_FINISHED") {
-          await fulfillPaidSubscription({
+          const args = {
             outTradeNo,
             tradeNo: String(q.tradeNo || q.trade_no || params.trade_no || ""),
             totalAmount: q.totalAmount || q.total_amount || params.total_amount,
-          });
+          };
+          const playResult = await fulfillPlayOrder(args);
+          if (!playResult.ok && playResult.reason === "order_not_found") {
+            await fulfillPaidSubscription(args);
+          }
           resultUrl.searchParams.set("status", "success");
           return NextResponse.redirect(resultUrl);
         }

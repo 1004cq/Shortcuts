@@ -29,13 +29,15 @@ export function isVipActive(
 export function canDownload(
   user?: Pick<SessionUser, "role" | "membership" | "membershipExpiresAt"> | null
 ): boolean {
-  return isVipActive(user);
+  // Membership removed — any signed-in user may download/stream vault files.
+  // Shortlink public play is gated by remainingTimes instead.
+  return Boolean(user);
 }
 
 export function canStream(
   user?: Pick<SessionUser, "role" | "membership" | "membershipExpiresAt"> | null
 ): boolean {
-  return isVipActive(user);
+  return Boolean(user);
 }
 
 export function canUpload(

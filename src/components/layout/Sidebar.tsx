@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Link2,
-  Crown,
+  Coins,
   Settings,
   Users,
   BarChart3,
@@ -21,14 +21,15 @@ import type { SessionUser } from "@/types";
 
 const mainNav = [
   { href: "/", label: "短链接", icon: Link2 },
+  { href: "/recharge", label: "充值次数", icon: Coins },
   { href: "/profile", label: "我的", icon: User },
-  { href: "/pricing", label: "会员套餐", icon: Crown },
 ];
 
 const adminNav = [
   { href: "/admin", label: "仪表盘", icon: BarChart3 },
   { href: "/admin/files", label: "文件管理", icon: HardDrive },
   { href: "/admin/users", label: "用户管理", icon: Users },
+  { href: "/admin/play-packs", label: "次数价格", icon: Coins },
   { href: "/admin/downloads", label: "下载统计", icon: Shield },
   { href: "/admin/settings", label: "系统设置", icon: Settings },
 ];

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { membershipLabel, roleLabel } from "@/lib/permissions";
+import { roleLabel } from "@/lib/permissions";
 import type { SessionUser } from "@/types";
 import {
   Table,
@@ -172,7 +172,6 @@ export default function ProfilePage() {
   const displayId = profile?.id || user?.id || "—";
   const displayEmail = profile?.email || user?.email || "—";
   const displayRole = profile?.role || user?.role || "user";
-  const displayMembership = profile?.membership || user?.membership || "free";
   const displayVerified =
     profile?.emailVerified ?? user?.emailVerified ?? false;
   const displayExpires =
@@ -201,9 +200,9 @@ export default function ProfilePage() {
                 <Badge variant="secondary">{roleLabel(displayRole as SessionUser["role"])}</Badge>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">会员</p>
-                <Badge variant={displayMembership === "free" ? "outline" : "vip"}>
-                  {membershipLabel(displayMembership as SessionUser["membership"])}
+                <p className="text-xs text-muted-foreground">账号类型</p>
+                <Badge variant="outline">
+                  {displayRole === "admin" ? "管理员" : "用户"}
                 </Badge>
               </div>
               <div>

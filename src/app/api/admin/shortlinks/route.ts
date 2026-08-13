@@ -12,6 +12,7 @@ import {
   requireAdmin,
   withApiHandler,
 } from "@/lib/api";
+import { TimesAdjustLog } from "@/models/TimesAdjustLog";
 import {
   buildPublicShortUrl,
   generateShortlinkUserId,
@@ -234,7 +235,7 @@ const patchSchema = z
 
 /** PATCH /api/admin/shortlinks */
 export const PATCH = withApiHandler(async (req: Request) => {
-  await requireAdmin();
+  const admin = await requireAdmin();
   await connectDB();
 
   const body = patchSchema.parse(await req.json());
@@ -255,10 +256,15 @@ export const PATCH = withApiHandler(async (req: Request) => {
     await assertFileExists(body.fileId);
     doc.fileId = new mongoose.Types.ObjectId(body.fileId);
   }
+
+  const beforeRemaining = Number(doc.remainingTimes) || 0;
+  let timesDelta = 0;
   if (body.remainingTimes !== undefined) {
+    timesDelta = body.remainingTimes - beforeRemaining;
     doc.remainingTimes = body.remainingTimes;
   } else if (body.addTimes !== undefined) {
-    doc.remainingTimes = (doc.remainingTimes || 0) + body.addTimes;
+    timesDelta = body.addTimes;
+    doc.remainingTimes = beforeRemaining + body.addTimes;
   }
   if (body.linkedUserId !== undefined) {
     const linked = await assertLinkedUser(body.linkedUserId);
@@ -282,6 +288,19 @@ export const PATCH = withApiHandler(async (req: Request) => {
       throw new ApiError("该短链接 ID 已被占用", 409);
     }
     throw err;
+  }
+
+  if (timesDelta !== 0 && doc.linkedUserId) {
+    await TimesAdjustLog.create({
+      adminId: admin.id,
+      adminEmail: admin.email,
+      targetUserId: doc.linkedUserId,
+      shortlinkUserId: doc.userId,
+      delta: timesDelta,
+      beforeRemaining,
+      afterRemaining: Number(doc.remainingTimes) || 0,
+      reason: body.addTimes !== undefined ? "管理员充次" : "管理员设置剩余次数",
+    }).catch(() => null);
   }
 
   return jsonOk({

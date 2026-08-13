@@ -102,19 +102,13 @@ export async function requireAuthFromRequest(req: Request): Promise<SessionUser>
 }
 
 export async function requireDownloadFromRequest(req: Request): Promise<SessionUser> {
-  const user = await requireAuthFromRequest(req);
-  if (!isVipActive(user)) {
-    throw new ApiError("需要 VIP 会员才能下载（快捷指令请使用 VIP/管理员 Token）", 403);
-  }
-  return user;
+  // Membership removed — any authenticated user / token may download.
+  // Public shortlink play is separately gated by remainingTimes.
+  return requireAuthFromRequest(req);
 }
 
 export async function requireStreamFromRequest(req: Request): Promise<SessionUser> {
-  const user = await requireAuthFromRequest(req);
-  if (!isVipActive(user)) {
-    throw new ApiError("需要 VIP 会员才能播放", 403);
-  }
-  return user;
+  return requireAuthFromRequest(req);
 }
 
 /** Ensure user has an apiToken; create one if missing. Returns the raw token. */

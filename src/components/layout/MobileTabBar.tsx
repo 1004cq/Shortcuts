@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Link2, Crown, User, Shield } from "lucide-react";
+import { Link2, Coins, User, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 import { canManageUsers } from "@/lib/permissions";
@@ -10,7 +10,7 @@ import type { SessionUser } from "@/types";
 
 const tabs = [
   { href: "/", label: "短链接", icon: Link2 },
-  { href: "/pricing", label: "会员", icon: Crown },
+  { href: "/recharge", label: "充值", icon: Coins },
   { href: "/profile", label: "我的", icon: User },
 ];
 

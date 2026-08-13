@@ -12,11 +12,15 @@ import {
   fulfillPaidSubscription,
   hasAlipayNotifyId,
 } from "@/lib/membership";
+import {
+  addPlayOrderNotifyId,
+  fulfillPlayOrder,
+  hasPlayOrderNotifyId,
+} from "@/lib/play-recharge";
 
 /**
  * POST /api/payments/alipay/notify
- * Async notify: verify sign → update order → plain text "success"
- * Anti-replay via notify_id; idempotent when already paid.
+ * Supports both membership Subscription and PlayOrder (times recharge).
  */
 export async function POST(req: Request) {
   let outTradeNo = "";
@@ -32,40 +36,31 @@ export async function POST(req: Request) {
     const notifyId = payload.notify_id || "";
 
     if (!payload.sign) {
-      console.error(JSON.stringify({ tag: "alipay/notify", message: "missing sign", outTradeNo }));
       return new Response("fail", { status: 400 });
     }
 
     if (!verifyAlipayNotify(payload)) {
-      console.error(
-        JSON.stringify({ tag: "alipay/notify", message: "bad signature", outTradeNo, notifyId })
-      );
       return new Response("fail", { status: 400 });
     }
 
     const appId = process.env.ALIPAY_APP_ID?.trim();
     if (appId && payload.app_id && payload.app_id !== appId) {
-      console.error(JSON.stringify({ tag: "alipay/notify", message: "app_id mismatch" }));
       return new Response("fail", { status: 400 });
     }
 
-    if (outTradeNo && notifyId && (await hasAlipayNotifyId(outTradeNo, notifyId))) {
-      console.log(
-        JSON.stringify({ tag: "alipay/notify", message: "replay ignored", outTradeNo, notifyId })
-      );
+    const replay =
+      (outTradeNo &&
+        notifyId &&
+        ((await hasAlipayNotifyId(outTradeNo, notifyId)) ||
+          (await hasPlayOrderNotifyId(outTradeNo, notifyId)))) ||
+      false;
+    if (replay) {
       return new Response("success");
     }
 
     if (!isPaidTradeStatus(payload.trade_status)) {
-      console.log(
-        JSON.stringify({
-          tag: "alipay/notify",
-          message: "non-final",
-          outTradeNo,
-          tradeStatus: payload.trade_status,
-        })
-      );
       await addAlipayNotifyId(outTradeNo, notifyId);
+      await addPlayOrderNotifyId(outTradeNo, notifyId);
       return new Response("success");
     }
 
@@ -73,40 +68,37 @@ export async function POST(req: Request) {
       return new Response("fail", { status: 400 });
     }
 
-    const result = await fulfillPaidSubscription({
+    const paidAt = payload.gmt_payment ? new Date(payload.gmt_payment) : new Date();
+    const fulfillArgs = {
       outTradeNo,
       tradeNo: payload.trade_no,
       totalAmount: payload.total_amount,
-      paidAt: payload.gmt_payment ? new Date(payload.gmt_payment) : new Date(),
-    });
+      paidAt,
+    };
 
-    if (!result.ok && result.reason === "order_not_found") {
-      console.error(JSON.stringify({ tag: "alipay/notify", message: "order_not_found", outTradeNo }));
-      return new Response("fail", { status: 404 });
+    const playResult = await fulfillPlayOrder(fulfillArgs);
+    if (playResult.ok) {
+      await addAlipayNotifyId(outTradeNo, notifyId);
+      await addPlayOrderNotifyId(outTradeNo, notifyId);
+      return new Response("success");
     }
-    if (!result.ok && result.reason === "amount_mismatch") {
-      console.error(
-        JSON.stringify({
-          tag: "alipay/notify",
-          message: "amount_mismatch",
-          outTradeNo,
-          total_amount: payload.total_amount,
-        })
-      );
+    if (playResult.reason === "amount_mismatch") {
       return new Response("fail", { status: 400 });
     }
 
+    const subResult = await fulfillPaidSubscription(fulfillArgs);
+    if (!subResult.ok && subResult.reason === "order_not_found") {
+      return new Response("fail", { status: 404 });
+    }
+    if (!subResult.ok && subResult.reason === "amount_mismatch") {
+      return new Response("fail", { status: 400 });
+    }
+    if (!subResult.ok) {
+      return new Response("fail", { status: 500 });
+    }
+
     await addAlipayNotifyId(outTradeNo, notifyId);
-
-    console.log(
-      JSON.stringify({
-        tag: "alipay/notify",
-        message: result.already ? "already_active" : "fulfilled",
-        outTradeNo,
-        tradeNo: payload.trade_no,
-      })
-    );
-
+    await addPlayOrderNotifyId(outTradeNo, notifyId);
     return new Response("success");
   } catch (err) {
     console.error(

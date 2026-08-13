@@ -43,6 +43,9 @@ export default function HomePage() {
   const [msg, setMsg] = React.useState("");
   const [copied, setCopied] = React.useState(false);
   const railRef = React.useRef<HTMLDivElement>(null);
+  const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [previewingId, setPreviewingId] = React.useState<string | null>(null);
+  const [previewError, setPreviewError] = React.useState("");
 
   const flash = (text: string) => {
     setMsg(text);
@@ -114,6 +117,37 @@ export default function HomePage() {
     }
   };
 
+  const stopPreview = () => {
+    const el = previewAudioRef.current;
+    if (el) {
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    }
+    setPreviewingId(null);
+  };
+
+  const playPreview = async (fileId: string) => {
+    setPreviewError("");
+    try {
+      stopPreview();
+      const audio = previewAudioRef.current || new Audio();
+      previewAudioRef.current = audio;
+      audio.src = `/api/files/${fileId}/stream`;
+      audio.preload = "auto";
+      setPreviewingId(fileId);
+      await audio.play();
+    } catch {
+      setPreviewingId(null);
+      setPreviewError("试听失败，请检查网络或稍后重试");
+    }
+  };
+
+  React.useEffect(() => {
+    return () => stopPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const selectAudio = async (audio: AudioItem) => {
     if (!shortlink || saving || audio._id === shortlink.fileId) return;
     setSaving(true);
@@ -128,6 +162,7 @@ export default function HomePage() {
       if (!res.ok) throw new Error(data.error || "切换失败");
       setShortlink(data.item as ShortlinkInfo);
       flash(`已切换：${audio.name}`);
+      void playPreview(audio._id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "切换失败");
     } finally {
@@ -195,7 +230,7 @@ export default function HomePage() {
                 切换音频
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">
-                左右滑动选择，短链接不变
+                左右滑动选择并自动试听，短链接不变
               </p>
             </div>
             {shortlink?.fileId && (
@@ -281,6 +316,21 @@ export default function HomePage() {
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     切换中…
                   </p>
+                )}
+                {previewingId && !saving && (
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p className="text-xs text-sky-300">♪ 正在试听预览…</p>
+                    <button
+                      type="button"
+                      className="text-xs text-slate-400 underline"
+                      onClick={stopPreview}
+                    >
+                      停止
+                    </button>
+                  </div>
+                )}
+                {previewError && (
+                  <p className="mt-1 text-xs text-amber-400">{previewError}</p>
                 )}
               </div>
             </>

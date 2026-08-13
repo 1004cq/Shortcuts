@@ -15,7 +15,7 @@ import {
   Sun,
   LogOut,
   User,
-  Crown,
+  Coins,
   Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -245,9 +245,9 @@ export function Topbar({
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/pricing">
-                    <Crown className="h-4 w-4" />
-                    升级会员
+                  <Link href="/recharge">
+                    <Coins className="h-4 w-4" />
+                    充值次数
                   </Link>
                 </DropdownMenuItem>
                 {user?.role === "admin" && (
