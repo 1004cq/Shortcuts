@@ -11,14 +11,24 @@ import { requireDownloadFromRequest } from "@/lib/token-auth";
 import {
   resolveMediaContentDisposition,
   resolveMediaContentType,
+  shortlinkMediaKind,
 } from "@/lib/shortlink";
+import {
+  compressedImageHeaders,
+  ensureCompressedImage,
+} from "@/lib/image-compress";
 
 type Ctx = { params: { id: string } };
+
+function fileToWebStream(relativePath: string) {
+  const nodeStream = openFileStream(relativePath);
+  return Readable.toWeb(nodeStream) as unknown as ReadableStream;
+}
 
 /**
  * GET /api/files/:id/download
  * Auth: NextAuth session OR ?token= / Authorization: Bearer (VIP/admin).
- * Designed for Apple Shortcuts «获取 URL 内容» + Safari inline image/video.
+ * Images: compressed JPEG (longest edge ≤1920, ~q75, target <1MB), inline.
  */
 export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   const user = await requireDownloadFromRequest(req);
@@ -35,9 +45,6 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   }
 
   resolveStoredPath(file.path);
-  const stats = getFileStats(file.path);
-  const nodeStream = openFileStream(file.path);
-  const webStream = Readable.toWeb(nodeStream) as unknown as ReadableStream;
 
   await Promise.all([
     FileModel.updateOne({ _id: id }, { $inc: { downloadCount: 1 } }),
@@ -53,16 +60,27 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
     }),
   ]);
 
-  const contentType = resolveMediaContentType(file);
-  const contentDisposition = resolveMediaContentDisposition(file);
+  if (shortlinkMediaKind(file) === "image") {
+    try {
+      const compressed = await ensureCompressedImage(file);
+      const webStream = fileToWebStream(compressed.relativePath);
+      return new Response(webStream, {
+        status: 200,
+        headers: compressedImageHeaders(compressed.filename, compressed.size),
+      });
+    } catch (err) {
+      console.error("[download] image compress failed, serving original", err);
+    }
+  }
 
+  const stats = getFileStats(file.path);
+  const webStream = fileToWebStream(file.path);
   return new Response(webStream, {
     status: 200,
     headers: {
-      "Content-Type": contentType,
+      "Content-Type": resolveMediaContentType(file),
       "Content-Length": String(stats.size),
-      "Content-Disposition": contentDisposition,
-      // Allow Safari / Shortcuts to display media inline
+      "Content-Disposition": resolveMediaContentDisposition(file),
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
     },

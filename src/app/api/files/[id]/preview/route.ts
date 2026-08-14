@@ -8,15 +8,17 @@ import { getFileStats, openFileStream, resolveStoredPath } from "@/lib/storage";
 import { ApiError, withApiHandler } from "@/lib/api";
 import { requireAuthFromRequest } from "@/lib/token-auth";
 import { isShortlinkMediaFile, shortlinkMediaKind } from "@/lib/shortlink";
+import {
+  compressedImageHeaders,
+  ensureCompressedImage,
+} from "@/lib/image-compress";
 
 type Ctx = { params: { id: string } };
 
 /**
  * GET /api/files/:id/preview
- * Lightweight media thumbnail / image preview for grid lazy-load.
- * - Images: serve the image file
- * - Videos with thumbnailPath: serve stored cover
- * - No DownloadLog (unlike /stream) — safe for many in-viewport thumbs
+ * Lightweight media thumbnail / image preview.
+ * Images: compressed JPEG (not original). Videos: stored cover if any.
  */
 export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   await requireAuthFromRequest(req);
@@ -28,7 +30,7 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
 
   await connectDB();
   const file = await FileModel.findById(id)
-    .select("path thumbnailPath category mimeType name")
+    .select("path thumbnailPath category mimeType name originalName")
     .lean();
   if (!file) {
     throw new ApiError("文件不存在", 404);
@@ -38,19 +40,32 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   }
 
   const kind = shortlinkMediaKind(file);
+
+  if (kind === "image") {
+    try {
+      const compressed = await ensureCompressedImage(file);
+      const nodeStream = openFileStream(compressed.relativePath);
+      const webStream = Readable.toWeb(nodeStream) as unknown as ReadableStream;
+      return new Response(webStream, {
+        status: 200,
+        headers: {
+          ...compressedImageHeaders(compressed.filename, compressed.size),
+          "Cache-Control": "private, max-age=300",
+        },
+      });
+    } catch (err) {
+      console.error("[preview] image compress failed", err);
+      throw new ApiError("图片预览生成失败", 500);
+    }
+  }
+
   let relativePath: string | null = null;
   let contentType = file.mimeType || "application/octet-stream";
 
-  if (kind === "image") {
-    relativePath = file.path;
-  } else if (kind === "video" && file.thumbnailPath) {
+  if (kind === "video" && file.thumbnailPath) {
     relativePath = String(file.thumbnailPath);
     contentType = "image/jpeg";
   } else {
-    throw new ApiError("暂无可用缩略图", 404);
-  }
-
-  if (!relativePath) {
     throw new ApiError("暂无可用缩略图", 404);
   }
 
@@ -65,7 +80,6 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
       "Content-Type": contentType,
       "Content-Length": String(stats.size),
       "Accept-Ranges": "bytes",
-      // Short private cache — avoids refetch while scrolling grids
       "Cache-Control": "private, max-age=300",
     },
   });

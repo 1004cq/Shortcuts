@@ -69,6 +69,23 @@ export async function saveUploadedFile(
   };
 }
 
+export async function saveBufferFile(
+  buffer: Buffer,
+  opts: { subdir?: string; filename: string }
+): Promise<{ relativePath: string; size: number; absolute: string }> {
+  const root = ensureUploadDir();
+  const subdir = opts.subdir || "previews";
+  const folder = path.join(root, subdir);
+  if (!existsSync(folder)) {
+    mkdirSync(folder, { recursive: true });
+  }
+  const storedName = sanitizeFilename(opts.filename);
+  const absolute = path.join(folder, storedName);
+  const relativePath = path.join(subdir, storedName).replace(/\\/g, "/");
+  await fs.writeFile(absolute, buffer);
+  return { relativePath, size: buffer.length, absolute };
+}
+
 export async function deleteStoredFile(relativePath: string) {
   try {
     const absolute = resolveStoredPath(relativePath);

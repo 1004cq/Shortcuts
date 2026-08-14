@@ -9,14 +9,24 @@ import { ApiError, withApiHandler } from "@/lib/api";
 import {
   resolveMediaContentDisposition,
   resolveMediaContentType,
+  shortlinkMediaKind,
 } from "@/lib/shortlink";
+import {
+  compressedImageHeaders,
+  ensureCompressedImage,
+} from "@/lib/image-compress";
 
 type Ctx = { params: { token: string } };
+
+function fileToWebStream(relativePath: string) {
+  const nodeStream = openFileStream(relativePath);
+  return Readable.toWeb(nodeStream) as unknown as ReadableStream;
+}
 
 /**
  * GET /l/:shareToken
  * Permanent per-file Shortcuts download link (auto-generated on upload).
- * No login / user API token required — possession of the unguessable token is auth.
+ * Images are served as compressed JPEG, not originals.
  */
 export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   const { token } = (ctx as Ctx).params;
@@ -31,9 +41,6 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   }
 
   resolveStoredPath(file.path);
-  const stats = getFileStats(file.path);
-  const nodeStream = openFileStream(file.path);
-  const webStream = Readable.toWeb(nodeStream) as unknown as ReadableStream;
 
   await Promise.all([
     FileModel.updateOne({ _id: file._id }, { $inc: { downloadCount: 1 } }),
@@ -49,7 +56,20 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
     }),
   ]);
 
-  return new Response(webStream, {
+  if (shortlinkMediaKind(file) === "image") {
+    try {
+      const compressed = await ensureCompressedImage(file);
+      return new Response(fileToWebStream(compressed.relativePath), {
+        status: 200,
+        headers: compressedImageHeaders(compressed.filename, compressed.size),
+      });
+    } catch (err) {
+      console.error("[share] image compress failed, serving original", err);
+    }
+  }
+
+  const stats = getFileStats(file.path);
+  return new Response(fileToWebStream(file.path), {
     status: 200,
     headers: {
       "Content-Type": resolveMediaContentType(file),
