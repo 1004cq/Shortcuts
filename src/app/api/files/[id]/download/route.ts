@@ -8,13 +8,17 @@ import { DownloadLog } from "@/models/DownloadLog";
 import { getFileStats, openFileStream, resolveStoredPath } from "@/lib/storage";
 import { ApiError, withApiHandler } from "@/lib/api";
 import { requireDownloadFromRequest } from "@/lib/token-auth";
+import {
+  resolveMediaContentDisposition,
+  resolveMediaContentType,
+} from "@/lib/shortlink";
 
 type Ctx = { params: { id: string } };
 
 /**
  * GET /api/files/:id/download
  * Auth: NextAuth session OR ?token= / Authorization: Bearer (VIP/admin).
- * Designed for Apple Shortcuts «获取 URL 内容».
+ * Designed for Apple Shortcuts «获取 URL 内容» + Safari inline image/video.
  */
 export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   const user = await requireDownloadFromRequest(req);
@@ -49,12 +53,17 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
     }),
   ]);
 
+  const contentType = resolveMediaContentType(file);
+  const contentDisposition = resolveMediaContentDisposition(file);
+
   return new Response(webStream, {
     status: 200,
     headers: {
-      "Content-Type": file.mimeType || "application/octet-stream",
+      "Content-Type": contentType,
       "Content-Length": String(stats.size),
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+      "Content-Disposition": contentDisposition,
+      // Allow Safari / Shortcuts to display media inline
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
     },
   });

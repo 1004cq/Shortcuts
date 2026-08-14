@@ -6,6 +6,10 @@ import { FileModel } from "@/models/File";
 import { DownloadLog } from "@/models/DownloadLog";
 import { getFileStats, openFileStream, resolveStoredPath } from "@/lib/storage";
 import { ApiError, withApiHandler } from "@/lib/api";
+import {
+  resolveMediaContentDisposition,
+  resolveMediaContentType,
+} from "@/lib/shortlink";
 
 type Ctx = { params: { token: string } };
 
@@ -48,9 +52,10 @@ export const GET = withApiHandler(async (req: Request, ctx: unknown) => {
   return new Response(webStream, {
     status: 200,
     headers: {
-      "Content-Type": file.mimeType || "application/octet-stream",
+      "Content-Type": resolveMediaContentType(file),
       "Content-Length": String(stats.size),
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+      "Content-Disposition": resolveMediaContentDisposition(file),
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=60",
     },
   });

@@ -249,6 +249,95 @@ export function shortlinkMediaKind(file: {
   return null;
 }
 
+const EXT_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  bmp: "image/bmp",
+  svg: "image/svg+xml",
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  mkv: "video/x-matroska",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  opus: "audio/opus",
+  flac: "audio/flac",
+};
+
+/**
+ * Resolve a browser/Safari-friendly Content-Type for media delivery.
+ * Prefers stored mime; falls back to extension / category.
+ */
+export function resolveMediaContentType(file: {
+  category?: string | null;
+  mimeType?: string | null;
+  originalName?: string | null;
+  name?: string | null;
+}): string {
+  const raw = String(file.mimeType || "").trim().toLowerCase();
+  if (
+    raw.startsWith("image/") ||
+    raw.startsWith("video/") ||
+    raw.startsWith("audio/")
+  ) {
+    // Normalize common alias
+    if (raw === "image/jpg") return "image/jpeg";
+    return raw;
+  }
+
+  const filename = String(file.originalName || file.name || "");
+  const ext = filename.includes(".")
+    ? filename.split(".").pop()!.toLowerCase()
+    : "";
+  if (ext && EXT_MIME[ext]) return EXT_MIME[ext];
+
+  const kind = shortlinkMediaKind(file);
+  if (kind === "image") return "image/jpeg";
+  if (kind === "video") return "video/mp4";
+  if (kind === "audio") return "audio/mpeg";
+  return raw || "application/octet-stream";
+}
+
+/**
+ * Content-Disposition for Shortcuts / Safari:
+ * - image & video → inline (display / Quick Look)
+ * - audio → inline (Play Sound works either way; inline is safer in Safari)
+ * - other → attachment
+ */
+export function resolveMediaContentDisposition(
+  file: {
+    category?: string | null;
+    mimeType?: string | null;
+    originalName?: string | null;
+    name?: string | null;
+  },
+  filename?: string
+): string {
+  const name = encodeURIComponent(
+    filename || file.originalName || file.name || "file"
+  );
+  const kind = shortlinkMediaKind(file);
+  const contentType = resolveMediaContentType(file);
+  const inline =
+    kind === "image" ||
+    kind === "video" ||
+    kind === "audio" ||
+    contentType.startsWith("image/") ||
+    contentType.startsWith("video/") ||
+    contentType.startsWith("audio/");
+  const mode = inline ? "inline" : "attachment";
+  return `${mode}; filename*=UTF-8''${name}`;
+}
+
 /**
  * Build redirect target for a bound MediaVault file:
  *   {base}/api/files/{fileId}/download?token={apiToken}
