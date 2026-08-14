@@ -34,7 +34,7 @@ function cacheRelativePath(fileId: string): string {
   return `previews/${fileId}-short-${CACHE_VERSION}.jpg`;
 }
 
-function jpegDownloadName(file: CompressableFile): string {
+export function jpegDownloadName(file: CompressableFile): string {
   const raw = String(file.originalName || file.name || "image").replace(
     /\.[^.]+$/,
     ""

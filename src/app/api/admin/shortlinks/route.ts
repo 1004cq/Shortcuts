@@ -19,6 +19,7 @@ import {
   isShortlinkMediaFile,
   SHORTLINK_USER_ID_REGEXP,
 } from "@/lib/shortlink";
+import { prewarmShortlinkMedia } from "@/lib/media-serve";
 
 const userIdSchema = z
   .string()
@@ -210,6 +211,10 @@ export const POST = withApiHandler(async (req: Request) => {
     lastAccessTime: null,
   });
 
+  if (body.fileId) {
+    prewarmShortlinkMedia(body.fileId);
+  }
+
   return jsonOk({
     item: await serializeOne(created.toObject() as LeanShortlink),
   });
@@ -261,6 +266,9 @@ export const PATCH = withApiHandler(async (req: Request) => {
     doc.fileId = new mongoose.Types.ObjectId(body.fileId);
   }
 
+  const boundFileId =
+    body.fileId !== undefined ? body.fileId : doc.fileId ? String(doc.fileId) : null;
+
   const beforeRemaining = Number(doc.remainingTimes) || 0;
   let timesDelta = 0;
   if (body.remainingTimes !== undefined) {
@@ -292,6 +300,10 @@ export const PATCH = withApiHandler(async (req: Request) => {
       throw new ApiError("该短链接 ID 已被占用", 409);
     }
     throw err;
+  }
+
+  if (boundFileId) {
+    prewarmShortlinkMedia(boundFileId);
   }
 
   if (timesDelta !== 0 && doc.linkedUserId) {

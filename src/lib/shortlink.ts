@@ -273,9 +273,37 @@ const EXT_MIME: Record<string, string> = {
   flac: "audio/flac",
 };
 
+const GENERIC_MIME_TYPES = new Set([
+  "application/octet-stream",
+  "binary/octet-stream",
+  "application/download",
+  "application/force-download",
+  "application/x-download",
+]);
+
+function isSpecificMediaMime(mime: string): boolean {
+  return (
+    (mime.startsWith("image/") ||
+      mime.startsWith("video/") ||
+      mime.startsWith("audio/")) &&
+    !GENERIC_MIME_TYPES.has(mime)
+  );
+}
+
+function mimeMatchesKind(
+  mime: string,
+  kind: ShortlinkMediaKind | null
+): boolean {
+  if (!kind) return true;
+  if (kind === "image") return mime.startsWith("image/");
+  if (kind === "video") return mime.startsWith("video/");
+  if (kind === "audio") return mime.startsWith("audio/");
+  return true;
+}
+
 /**
  * Resolve a browser/Safari-friendly Content-Type for media delivery.
- * Prefers stored mime; falls back to extension / category.
+ * Never returns application/octet-stream for bound shortlink media.
  */
 export function resolveMediaContentType(file: {
   category?: string | null;
@@ -283,13 +311,10 @@ export function resolveMediaContentType(file: {
   originalName?: string | null;
   name?: string | null;
 }): string {
+  const kind = shortlinkMediaKind(file);
   const raw = String(file.mimeType || "").trim().toLowerCase();
-  if (
-    raw.startsWith("image/") ||
-    raw.startsWith("video/") ||
-    raw.startsWith("audio/")
-  ) {
-    // Normalize common alias
+
+  if (isSpecificMediaMime(raw) && mimeMatchesKind(raw, kind)) {
     if (raw === "image/jpg") return "image/jpeg";
     return raw;
   }
@@ -300,11 +325,10 @@ export function resolveMediaContentType(file: {
     : "";
   if (ext && EXT_MIME[ext]) return EXT_MIME[ext];
 
-  const kind = shortlinkMediaKind(file);
   if (kind === "image") return "image/jpeg";
   if (kind === "video") return "video/mp4";
   if (kind === "audio") return "audio/mpeg";
-  return raw || "application/octet-stream";
+  return "application/octet-stream";
 }
 
 /**

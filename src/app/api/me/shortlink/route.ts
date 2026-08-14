@@ -19,6 +19,7 @@ import {
   shortlinkMediaKind,
   type ShortlinkMediaKind,
 } from "@/lib/shortlink";
+import { prewarmShortlinkMedia } from "@/lib/media-serve";
 
 async function serializeForUser(mediaVaultUserId: string) {
   const user = await User.findById(mediaVaultUserId).lean();
@@ -115,6 +116,8 @@ export const PATCH = withApiHandler(async (req: Request) => {
 
   doc.fileId = new mongoose.Types.ObjectId(body.fileId);
   await doc.save();
+
+  prewarmShortlinkMedia(body.fileId);
 
   return jsonOk({
     item: await serializeForUser(sessionUser.id),

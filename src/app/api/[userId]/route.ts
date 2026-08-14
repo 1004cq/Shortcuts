@@ -2,9 +2,15 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
+import { FileModel } from "@/models/File";
 import { ShortlinkUser } from "@/models/ShortlinkUser";
 import {
-  buildFileDownloadRedirectUrl,
+  buildMediaFileHeadResponse,
+  buildMediaFileResponse,
+  recordMediaDownload,
+} from "@/lib/media-serve";
+import {
+  isShortlinkMediaFile,
   isValidShortlinkUserId,
 } from "@/lib/shortlink";
 
@@ -21,10 +27,30 @@ const RESERVED_API_SEGMENTS = new Set([
 
 type Ctx = { params: { userId: string } };
 
+async function loadBoundMedia(userId: string) {
+  await connectDB();
+
+  const doc = await ShortlinkUser.findOne({ userId }).lean();
+  if (!doc) {
+    return { error: "用户不存在", status: 404 as const };
+  }
+
+  if (!doc.fileId) {
+    return { error: "该用户未绑定音频、视频或图片", status: 404 as const };
+  }
+
+  const file = await FileModel.findById(doc.fileId);
+  if (!file || !isShortlinkMediaFile(file)) {
+    return { error: "绑定的媒体文件不存在", status: 404 as const };
+  }
+
+  return { doc, file };
+}
+
 /**
  * GET /api/:userId
  * Public short link with play-count billing (Shortcuts).
- * Flow: find user → require bound media → check remaining → deduct 1 → 302 to download.
+ * Serves media directly with correct Content-Type (no redirect).
  */
 export async function GET(req: Request, ctx: Ctx) {
   try {
@@ -41,19 +67,10 @@ export async function GET(req: Request, ctx: Ctx) {
       });
     }
 
-    await connectDB();
-
-    const doc = await ShortlinkUser.findOne({ userId }).lean();
-    if (!doc) {
-      return new NextResponse("用户不存在", {
-        status: 404,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      });
-    }
-
-    if (!doc.fileId) {
-      return new NextResponse("该用户未绑定音频、视频或图片", {
-        status: 404,
+    const loaded = await loadBoundMedia(userId);
+    if ("error" in loaded) {
+      return new NextResponse(loaded.error, {
+        status: loaded.status,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
@@ -74,11 +91,14 @@ export async function GET(req: Request, ctx: Ctx) {
       });
     }
 
-    const downloadUrl = await buildFileDownloadRedirectUrl(
-      String(updated.fileId),
-      req
-    );
-    return NextResponse.redirect(downloadUrl, 302);
+    const logUserId = updated.linkedUserId || loaded.file.uploadedBy;
+    await recordMediaDownload(loaded.file, {
+      userId: logUserId,
+      req,
+      userAgentFallback: "shortlink",
+    });
+
+    return buildMediaFileResponse(loaded.file);
   } catch (err) {
     console.error("[api-shortlink]", err);
     const message =
@@ -94,5 +114,32 @@ export async function GET(req: Request, ctx: Ctx) {
       status,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
+  }
+}
+
+/**
+ * HEAD /api/:userId — type probe for Shortcuts (no billing, no body).
+ */
+export async function HEAD(_req: Request, ctx: Ctx) {
+  try {
+    const { userId } = ctx.params;
+
+    if (RESERVED_API_SEGMENTS.has(userId)) {
+      return new NextResponse(null, { status: 404 });
+    }
+
+    if (!isValidShortlinkUserId(userId)) {
+      return new NextResponse(null, { status: 400 });
+    }
+
+    const loaded = await loadBoundMedia(userId);
+    if ("error" in loaded) {
+      return new NextResponse(null, { status: loaded.status });
+    }
+
+    return buildMediaFileHeadResponse(loaded.file);
+  } catch (err) {
+    console.error("[api-shortlink-head]", err);
+    return new NextResponse(null, { status: 500 });
   }
 }
